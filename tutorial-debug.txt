@@ -1,0 +1,5 @@
+1. Desde la máquina normal ejecutar make run-nox.
+2. Desde el vscode ejecutar make qemu-gdb
+3. Desde el vscode abrir otro terminal y poner gdb-multiarch
+4. En el gdb poner b main y luego c
+5. En el gdb poner layout next y luego darle al enter varias veces hasta que se vea nashei

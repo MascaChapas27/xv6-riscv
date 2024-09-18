@@ -1,0 +1,5 @@
+1. En el syscall.h hay que ponerle un número a la nueva llamada al sistema.
+2. En el user.h añadir el prototipo de la syscall.
+3. En el usys.pl añadir un entry("nombrefuncion");
+4. En el syscall.c añadir el prototipo extern y meter la correspondencia en el array
+5. Si es de entrada salida, mételo en sysfile.c, si no, en sysproc.c.

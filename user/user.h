@@ -1,3 +1,6 @@
+#ifndef __USER_H__
+#define __USER_H__
+
 struct stat;
 
 // system calls
@@ -22,6 +25,7 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int settickets(int);
 
 // ulib.c
 int stat(const char*, struct stat*);
@@ -41,3 +45,5 @@ void *memcpy(void *, const void *, uint);
 // umalloc.c
 void* malloc(uint);
 void free(void*);
+
+#endif
