@@ -236,6 +236,8 @@ userinit(void)
 
   p = allocproc();
   initproc = p;
+
+  //p->settickets(1);
   
   // allocate one user page and copy initcode's instructions
   // and data into it.
@@ -295,6 +297,9 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+
+  // Copy number of tickets
+  np->tickets = p->tickets;
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);

@@ -2,6 +2,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "param.h"
+#include "pstat.h"
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
@@ -92,14 +93,32 @@ sys_uptime(void)
   return xticks;
 }
 
-// me pica un CoCo
+// update the number of tickets of a process
 uint64
 sys_settickets(void)
 {
   int tickets;
   argint(0, &tickets);
 
+  if(tickets <= 0) return -1;
+
   myproc()->tickets = tickets;
+  
+  return 0;
+}
+
+// returns info about all processes
+uint64
+sys_getpinfo(void)
+{
+  struct pstat * pinfo;
+  uint64 * aux;
+
+  argaddr(0, &aux);
+
+  pinfo = (struct pstat *)aux;
+
+  if(pinfo == 0) return -1;
   
   return 0;
 }

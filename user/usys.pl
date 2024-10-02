@@ -37,3 +37,4 @@ entry("link");
 entry("mkdir");
 entry("close");
 entry("settickets");
+entry("getpinfo");
