@@ -2,6 +2,7 @@
 #define __USER_H__
 
 struct stat;
+struct pstat;
 
 // system calls
 int fork(void);
@@ -26,7 +27,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int settickets(int);
-//int getpinfo(struct pstat *);
+int getpinfo(struct pstat *);
 
 // ulib.c
 int stat(const char*, struct stat*);

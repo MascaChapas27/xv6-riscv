@@ -119,6 +119,9 @@ sys_getpinfo(void)
   pinfo = (struct pstat *)aux;
 
   if(pinfo == 0) return -1;
+
+  // Process INformation Getter for All (PINGA)
+  pinga(pinfo);
   
   return 0;
 }

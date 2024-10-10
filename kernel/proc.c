@@ -723,3 +723,12 @@ procdump(void)
     printf("\n");
   }
 }
+
+void
+pinga(struct pstat *pinfo){
+  struct proc *p;
+  for(p = proc; p < &proc[NPROC]; p++){
+    
+  }
+  return 0;
+}
