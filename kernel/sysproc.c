@@ -112,7 +112,7 @@ uint64
 sys_getpinfo(void)
 {
   struct pstat * pinfo;
-  uint64 * aux;
+  uint64 aux;
 
   argaddr(0, &aux);
 

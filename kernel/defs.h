@@ -111,6 +111,7 @@ int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
 
 // swtch.S
+// Save current registers in old. Load from new.	
 void            swtch(struct context*, struct context*);
 
 // spinlock.c

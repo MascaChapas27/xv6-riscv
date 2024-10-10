@@ -6,6 +6,17 @@
 #include "proc.h"
 #include "defs.h"
 
+// Total number of tickets from all process in RUNNABLE state.
+int wannaRunTickets = 0;
+
+static unsigned int seed = 1;
+
+int
+randInt (void) {
+    seed = (seed * 1103515245U + 12345U) & 0x7fffffffU;
+    return (int)seed;
+}
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -237,7 +248,7 @@ userinit(void)
   p = allocproc();
   initproc = p;
 
-  //p->settickets(1);
+  p->tickets = 10;
   
   // allocate one user page and copy initcode's instructions
   // and data into it.
@@ -252,6 +263,7 @@ userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
+  wannaRunTickets = wannaRunTickets + p->tickets;
 
   release(&p->lock);
 }
@@ -325,6 +337,7 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
+  wannaRunTickets = wannaRunTickets + p->tickets;
   release(&np->lock);
 
   return pid;
@@ -451,6 +464,7 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  
 
   c->proc = 0;
   for(;;){
@@ -460,20 +474,28 @@ scheduler(void)
     intr_on();
 
     int found = 0;
+    int luckyNumber = randInt() % wannaRunTickets;
+    int counter = 0;
+
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+        counter = counter + p->tickets;
+          // Find the winner of the lottery.
+        if(counter > luckyNumber){
+          // Winner found. Switch to chosen process.  It is the process's job
+          // to release its lock and then reacquire it
+          // before jumping back to us.
+          p->state = RUNNING;
+          wannaRunTickets = wannaRunTickets - p->tickets;
+          c->proc = p;
+          swtch(&c->context, &p->context);
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+          found = 1;
+        }
       }
       release(&p->lock);
     }
@@ -519,6 +541,7 @@ yield(void)
   struct proc *p = myproc();
   acquire(&p->lock);
   p->state = RUNNABLE;
+  wannaRunTickets = wannaRunTickets + p->tickets;
   sched();
   release(&p->lock);
 }
@@ -590,6 +613,7 @@ wakeup(void *chan)
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
+        wannaRunTickets = wannaRunTickets + p->tickets;
       }
       release(&p->lock);
     }
@@ -611,6 +635,7 @@ kill(int pid)
       if(p->state == SLEEPING){
         // Wake process from sleep().
         p->state = RUNNABLE;
+        wannaRunTickets = wannaRunTickets + p->tickets;
       }
       release(&p->lock);
       return 0;
