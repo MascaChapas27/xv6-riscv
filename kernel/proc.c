@@ -6,7 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 
-// Total number of tickets from all process in RUNNABLE state.
+// Tracks total number of tickets from all process in RUNNABLE state.
 int wannaRunTickets = 0;
 
 static unsigned int seed = 1;
