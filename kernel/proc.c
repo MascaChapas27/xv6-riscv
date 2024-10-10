@@ -4,6 +4,7 @@
 #include "riscv.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "pstat.h"
 #include "defs.h"
 
 // Tracks total number of tickets from all process in RUNNABLE state.
@@ -249,6 +250,7 @@ userinit(void)
   initproc = p;
 
   p->tickets = 10;
+  p->clockticks = 0;
   
   // allocate one user page and copy initcode's instructions
   // and data into it.
@@ -312,6 +314,9 @@ fork(void)
 
   // Copy number of tickets
   np->tickets = p->tickets;
+
+  // Restart number of ticks
+  np->clockticks = 0;
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -474,7 +479,11 @@ scheduler(void)
     intr_on();
 
     int found = 0;
+
+    // This is the number that will determine which ticket wins the next lottery
     int luckyNumber = randInt() % wannaRunTickets;
+
+    // Aux variable that helps keep track of all tickets checked before
     int counter = 0;
 
     for(p = proc; p < &proc[NPROC]; p++) {
@@ -483,11 +492,12 @@ scheduler(void)
         counter = counter + p->tickets;
           // Find the winner of the lottery.
         if(counter > luckyNumber){
-          // Winner found. Switch to chosen process.  It is the process's job
+          // Winner found. Switch to chosen process. It is the process's job
           // to release its lock and then reacquire it
           // before jumping back to us.
           p->state = RUNNING;
           wannaRunTickets = wannaRunTickets - p->tickets;
+          p->clockticks += CLOCKTICKS;
           c->proc = p;
           swtch(&c->context, &p->context);
 
@@ -725,10 +735,16 @@ procdump(void)
 }
 
 void
-pinga(struct pstat *pinfo){
-  struct proc *p;
-  for(p = proc; p < &proc[NPROC]; p++){
-    
+getpinfo(struct pstat * pinfo){
+  for(int i=0;i<=NPROC;i++){
+    pinfo->inuse[i] = proc[i].state;
+
+    if(pinfo->inuse[i] == UNUSED) continue;
+
+    pinfo->pid[i] = proc[i].pid;
+
+    pinfo->tickets[i] = proc[i].tickets;
+
+    pinfo->ticks[i] = proc[i].clockticks;
   }
-  return 0;
 }

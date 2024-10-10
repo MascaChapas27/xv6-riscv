@@ -15,5 +15,6 @@
 #define FSSIZE       2000  // size of file system in blocks
 #define MAXPATH      128   // maximum file path name
 #define USERSTACK    1     // user stack pages
+#define CLOCKTICKS   1000000    // clock ticks that pass until a clock interrupt happens
 
 #endif

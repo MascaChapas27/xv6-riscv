@@ -1,6 +1,8 @@
 #ifndef __PROC_H__
 #define __PROC_H__
 
+#include "pstat.h"
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
@@ -110,6 +112,9 @@ struct proc {
 
   // Added to implement lottery scheduling
   uint64 tickets;              // Number of tickets to participate in scheduling
+
+  // Approximate number of clock ticks that this process has executed
+  uint64 clockticks;
 };
 
 #endif

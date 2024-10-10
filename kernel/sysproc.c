@@ -120,8 +120,7 @@ sys_getpinfo(void)
 
   if(pinfo == 0) return -1;
 
-  // Process INformation Getter for All (PINGA)
-  pinga(pinfo);
+  getpinfo(pinfo);
   
   return 0;
 }
