@@ -111,12 +111,9 @@ sys_settickets(void)
 uint64
 sys_getpinfo(void)
 {
-  struct pstat * pinfo;
-  uint64 aux;
+  uint64 pinfo;
 
-  argaddr(0, &aux);
-
-  pinfo = (struct pstat *)aux;
+  argaddr(0, &pinfo);
 
   if(pinfo == 0) return -1;
 

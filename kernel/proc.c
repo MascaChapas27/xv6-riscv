@@ -10,11 +10,12 @@
 // Tracks total number of tickets from all process in RUNNABLE state.
 int wannaRunTickets = 0;
 
-static unsigned int seed = 1;
+static unsigned int seed = 69;
 
 int
 randInt (void) {
     seed = (seed * 1103515245U + 12345U) & 0x7fffffffU;
+    if(seed < 0) panic("Negativo en el seed tongo tongo");
     return (int)seed;
 }
 
@@ -480,6 +481,8 @@ scheduler(void)
 
     int found = 0;
 
+    // Sacar aquí el wannaRunTickets
+
     // This is the number that will determine which ticket wins the next lottery
     int luckyNumber = randInt() % wannaRunTickets;
 
@@ -508,6 +511,8 @@ scheduler(void)
         }
       }
       release(&p->lock);
+
+      if(found) break;
     }
     if(found == 0) {
       // nothing to run; stop running on this core until an interrupt.
@@ -735,16 +740,18 @@ procdump(void)
 }
 
 void
-getpinfo(struct pstat * pinfo){
+getpinfo(uint64 pinfo){
+  struct pstat auxPinfo;
   for(int i=0;i<NPROC;i++){
-    pinfo->inuse[i] = proc[i].state;
+    auxPinfo.inuse[i] = proc[i].state != UNUSED;
 
-    if(pinfo->inuse[i] == UNUSED) continue;
+    if(auxPinfo.inuse[i] == 0) continue;
 
-    pinfo->pid[i] = proc[i].pid;
+    auxPinfo.pid[i] = proc[i].pid;
 
-    pinfo->tickets[i] = proc[i].tickets;
+    auxPinfo.tickets[i] = proc[i].tickets;
 
-    pinfo->ticks[i] = proc[i].clockticks;
+    auxPinfo.ticks[i] = proc[i].clockticks;
   }
+  copyout(myproc()->pagetable,pinfo,(char*)&auxPinfo, sizeof(struct pstat));
 }
