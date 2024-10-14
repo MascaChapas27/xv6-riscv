@@ -736,7 +736,7 @@ procdump(void)
 
 void
 getpinfo(struct pstat * pinfo){
-  for(int i=0;i<=NPROC;i++){
+  for(int i=0;i<NPROC;i++){
     pinfo->inuse[i] = proc[i].state;
 
     if(pinfo->inuse[i] == UNUSED) continue;
