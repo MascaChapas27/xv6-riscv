@@ -7,9 +7,6 @@
 #include "pstat.h"
 #include "defs.h"
 
-// Tracks total number of tickets from all process in RUNNABLE state.
-int wannaRunTickets = 0;
-
 static unsigned int seed = 69;
 
 int
@@ -266,7 +263,6 @@ userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
-  wannaRunTickets = wannaRunTickets + p->tickets;
 
   release(&p->lock);
 }
@@ -343,7 +339,6 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
-  wannaRunTickets = wannaRunTickets + p->tickets;
   release(&np->lock);
 
   return pid;
@@ -481,7 +476,12 @@ scheduler(void)
 
     int found = 0;
 
-    // Sacar aquí el wannaRunTickets
+    // Tracks total number of tickets from all processes in RUNNABLE state
+    int wannaRunTickets = 0;
+    for(int i=0;i<NPROC;i++){
+      if(proc[i].state == RUNNABLE)
+        wannaRunTickets+=proc[i].tickets;
+    }
 
     // This is the number that will determine which ticket wins the next lottery
     int luckyNumber = randInt() % wannaRunTickets;
@@ -499,7 +499,6 @@ scheduler(void)
           // to release its lock and then reacquire it
           // before jumping back to us.
           p->state = RUNNING;
-          wannaRunTickets = wannaRunTickets - p->tickets;
           p->clockticks += CLOCKTICKS;
           c->proc = p;
           swtch(&c->context, &p->context);
@@ -512,6 +511,10 @@ scheduler(void)
       }
       release(&p->lock);
 
+      // In order to assure that each lottery is performed
+      // in equal conditions, when returning to this function it is
+      // necessary to start from the beginning (choosing another lucky
+      // number)
       if(found) break;
     }
     if(found == 0) {
@@ -556,7 +559,6 @@ yield(void)
   struct proc *p = myproc();
   acquire(&p->lock);
   p->state = RUNNABLE;
-  wannaRunTickets = wannaRunTickets + p->tickets;
   sched();
   release(&p->lock);
 }
@@ -628,7 +630,6 @@ wakeup(void *chan)
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
-        wannaRunTickets = wannaRunTickets + p->tickets;
       }
       release(&p->lock);
     }
@@ -650,7 +651,6 @@ kill(int pid)
       if(p->state == SLEEPING){
         // Wake process from sleep().
         p->state = RUNNABLE;
-        wannaRunTickets = wannaRunTickets + p->tickets;
       }
       release(&p->lock);
       return 0;
