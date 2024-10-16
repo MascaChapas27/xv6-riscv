@@ -56,9 +56,7 @@ int main(int argc, char *argv[]){
       }
     }
     struct pstat info;
-    fprintf(1,"este\n");
     getpinfo(&info);
-    fprintf(1,"no xddddd\n");
     for(int i=0; i<NPROC; i++){
       if(info.inuse[i] == 1){
         
@@ -66,7 +64,6 @@ int main(int argc, char *argv[]){
       }
     }
   }
-    fprintf(1,"que es crotolamo\n");
 
   exit(0);
 }
