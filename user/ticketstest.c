@@ -5,7 +5,7 @@
 #include "kernel/pstat.h"
 
 #define MAX_CHILDREN 32
-#define DEFAULT_CHILDREN 2
+#define DEFAULT_CHILDREN 4
 
 float test_child(){
   float aux = 0;
@@ -29,7 +29,8 @@ int main(int argc, char *argv[]){
   }
   settickets((childs+1)*10);
 
-  int pid;
+  int pid = 0;
+  int dadpid = getpid();
 
   for(int i = 0; i < childs; i++){
     pid = fork();
@@ -40,7 +41,6 @@ int main(int argc, char *argv[]){
         break;
       case 0:
         settickets((childs-i)*10);
-        fprintf(1,"que es crotolamo\n");
         break;
     }
     if(pid == 0){
@@ -48,22 +48,49 @@ int main(int argc, char *argv[]){
     }
   }
 
+  // Cara inútil para pseudosincronizar los procesos y que el padre pueda
+  // leer los tickets asignados a los hijos correctamente.
   int aux = 0;
+
+  for(int i = 0; i < 99999; i++){
+      for(int j = 0; j < 9999; j++){
+        aux = aux*j;
+      }
+    }
+
+  struct pstat info;
+  getpinfo(&info);
+  // Obtenemos la cabecera para el CSV, solo lo ejecuta el proceso padre.
+  if(dadpid == getpid()){
+    for(int i=0; i<NPROC; i++){
+      if(info.inuse[i] == 1){
+          printf("%d,", info.pid[i]);
+      }
+    }
+    printf("\n");
+    for(int i=0; i<NPROC; i++){
+      if(info.inuse[i] == 1){
+          printf("%d,", info.tickets[i]);
+      }
+    }
+    printf("\n");
+  }
+
   while(1){
     for(int i = 0; i < 99999; i++){
       for(int j = 0; j < 9999; j++){
         aux = aux*j;
       }
     }
-    struct pstat info;
+    // Realizamos lecturas de los valores para todos los procesos.
     getpinfo(&info);
     for(int i=0; i<NPROC; i++){
       if(info.inuse[i] == 1){
-        
-        printf("pid: %d; tickets: %d; ticks: %d;\n", info.pid[i], info.tickets[i], info.ticks[i]);
+        printf("%d,", info.ticks[i]);
       }
     }
+    printf("\n");
   }
-
+  
   exit(0);
 }

@@ -12,7 +12,6 @@ static unsigned int seed = 69;
 int
 randInt (void) {
     seed = (seed * 1103515245U + 12345U) & 0x7fffffffU;
-    if(seed < 0) panic("Negativo en el seed tongo tongo");
     return (int)seed;
 }
 
