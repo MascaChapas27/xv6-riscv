@@ -140,7 +140,8 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_ticketstest\
-	$U/_lotterytest
+	$U/_lotterytest\
+	$U/_mmaptest
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

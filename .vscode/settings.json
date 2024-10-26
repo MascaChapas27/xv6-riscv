@@ -4,7 +4,14 @@
     "defs.h": "c",
     "stat.h": "c",
     "user.h": "c",
-    "pstat.h": "c"
+    "pstat.h": "c",
+    "param.h": "c",
+    "memlayout.h": "c",
+    "types.h": "c",
+    "fcntl.h": "c",
+    "fs.h": "c",
+    "proc.h": "c",
+    "spinlock.h": "c"
   },
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",

@@ -38,3 +38,5 @@ entry("mkdir");
 entry("close");
 entry("settickets");
 entry("getpinfo");
+entry("mmap");
+entry("munmap");

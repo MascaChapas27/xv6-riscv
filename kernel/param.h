@@ -16,5 +16,6 @@
 #define MAXPATH      128   // maximum file path name
 #define USERSTACK    1     // user stack pages
 #define CLOCKTICKS   1000000    // clock ticks that pass until a clock interrupt happens
+#define MAX_VMAS     16    // maximum number of VMAs a process can have
 
 #endif

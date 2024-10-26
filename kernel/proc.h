@@ -2,6 +2,7 @@
 #define __PROC_H__
 
 #include "pstat.h"
+#include "spinlock.h"
 
 // Saved registers for kernel context switches.
 struct context {
@@ -84,6 +85,25 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
+// Information about a Virtual Memory Area
+struct VMA {
+    int used;               // 0 if unused, 1 if used
+    uint64 addrBegin;       // Virtual address where this VMA begins (must be a multiple of PGSIZE)
+    uint64 length;          // Size of the VMA in bytes (must be a multiple of PGSIZE)
+    int prot;               // Protection (read and/or write, or none)
+    int flags;              // Sharing flags (private, shared)
+    uint64 offset;          // How far from the beginning of the virtual address space this VMA is located in bytes (must be a multiple of PGSIZE)
+    struct file* mapFile;   // The file that is being mapped
+};
+
+// Protection bits for a VMA
+#define PROT_READ   0x00000001U
+#define PROT_WRITE  0X00000010U
+
+// Sharing flags for a VMA
+#define MAP_PRIVATE 0x00000001U
+#define MAP_SHARED  0X00000010U
+
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -115,6 +135,9 @@ struct proc {
 
   // Approximate number of clock ticks that this process has executed
   uint64 clockticks;
+
+  // VMAs of this proccess
+  struct VMA vmas[MAX_VMAS];
 };
 
 #endif
