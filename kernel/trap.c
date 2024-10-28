@@ -67,6 +67,45 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if(r_scause() == 13 || r_scause() == 15){
+    // Fallo de página al leer (13) o al escribir (15) mientras se ejecutaba código de usuario
+
+    // Primero, se comprueba si la dirección que ha dado fallo (stval) está dentro de alguna VMA
+    // (se saca la dirección del primer byte de la página en la que se encuentra para simplificar)
+    void* faultAddr = (void*)(r_stval() & (PGSIZE-1));
+
+    int vmaIndex = 0;
+
+    while(vmaIndex < MAX_VMAS && !(p->vmas[vmaIndex].used && (p->vmas[vmaIndex].addrBegin >= faultAddr && faultAddr < (void*)((uint64)p->vmas[vmaIndex].addrBegin + (uint64)p->vmas[vmaIndex].length)))){
+      vmaIndex++;
+    }
+
+    // La dirección no pertenece a ninguna VMA
+    if(vmaIndex >= MAX_VMAS){
+      printf("usertrap(): fallo de página en la dirección %p\n", (void*)r_stval());
+      setkilled(p);
+    }
+
+    // Si la dirección pertenece a una VMA, primero sacamos una página física
+    char *physPage = (char*)kalloc();
+
+    // Ahora, la llenamos con los siguientes 4096 (como máximo) bytes de datos del fichero. Tenemos
+    // que obtener el cerrojo del fichero primero
+
+    struct inode* inodeptr = p->vmas[vmaIndex].mappedFile->ip;
+    uint64 fileOffset = (uint64*)(p->vmas[vmaIndex].offset + (faultAddr-p->vmas[vmaIndex].addrBegin));
+
+    ilock(inodeptr);
+    readi(inodeptr,0,(uint64)physPage,fileOffset,PGSIZE);
+    iunlock(inodeptr);
+
+    // Ahora que se ha conseguido leer el contenido a una página física, tenemos que mapearla a una
+    // página virtual en el proceso
+
+    int perm = PTE_U | (p->vmas[vmaIndex].prot & PROT_READ ? PTE_R : 0) | (p->vmas[vmaIndex].prot & PROT_WRITE ? PTE_W : 0);
+
+    mappages(p->pagetable,faultAddr,PGSIZE,physPage,perm);
+
   } else {
     printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
     printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());

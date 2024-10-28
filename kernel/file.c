@@ -180,3 +180,68 @@ filewrite(struct file *f, uint64 addr, int n)
   return ret;
 }
 
+void *
+mmap(void *addr, int length, int prot, int flags, struct file* f, int offset){
+
+  // No se pueden mapear 0 bytes o una longitud que no sea múltiplo del tamaño de página
+  if(length == 0 || length % PGSIZE != 0){
+    return (void*)0xffffffffffffffff;
+  }
+
+  struct proc* p = myproc();
+
+  int vmaIndex = 0;
+
+  // Encontrar una VMA vacía
+  while(p->vmas[vmaIndex].used && vmaIndex < MAX_VMAS){
+    vmaIndex++;
+  }
+
+  // No hay VMAs disponibles
+  if(vmaIndex >= MAX_VMAS){
+    return (void*)0xffffffffffffffff;
+  }
+
+  struct VMA * chosenVMA = &(p->vmas[vmaIndex]);
+
+  // Se rellena todo lo que sabemos de momento
+  chosenVMA->length = length;
+  chosenVMA->prot = prot;
+  chosenVMA->flags = flags;
+  chosenVMA->offset = offset;
+  chosenVMA->mappedFile = f;
+  chosenVMA->used = 1;
+
+  // Se comprueba la dirección de memoria de la VMA más abajo (se comienza por el final quitándole 2
+  // páginas, ya que nos saltamos el trampolín y el trapframe. Nos estaríamos colocando justo en el
+  // comienzo del trapframe)
+  void* addrLowestVMA = (void*)(MAXVA - 2*PGSIZE);
+
+  for(int i=0;i<MAX_VMAS;i++){
+    if(i == vmaIndex) continue;
+
+    if(p->vmas[i].used && p->vmas[i].addrBegin < addrLowestVMA){
+      addrLowestVMA = p->vmas[i].addrBegin;
+    }
+  }
+
+  // En addrLowestVMA tenemos la dirección alineada al tamaño de página donde está la VMA de más
+  // abajo. Colocaremos la siguiente justo debajo. Esto se puede hacer así porque hemos comprobado
+  // al principio que length es múltiplo del tamaño de página y distinto de cero
+  chosenVMA->addrBegin = addrLowestVMA-length;
+
+  // Es importante aumentar el número de referencias del fichero para que no sea liberado cuando
+  // se cierre pero aún permanezca la VMA mapeada
+  filedup(f);
+
+  // En vez de mapear aquí el contenido del fichero, se deja para después (lazy alloc)
+  return chosenVMA->addrBegin;
+}
+
+int
+munmap(void *addr, int length){
+
+  // Si la longitud final de la VMA llega a 0, poner la VMA a unused y hacer fileclose()
+
+  return -1;
+}

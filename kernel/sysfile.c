@@ -503,3 +503,33 @@ sys_pipe(void)
   }
   return 0;
 }
+
+// maps a file into a VMA
+uint64
+sys_mmap(void)
+{
+  uint64 addr;
+  int length;
+  int prot;
+  int flags;
+  int fd;
+  struct file * f;
+  int offset;
+  argaddr(0, &addr);
+  argint(1, &length);
+  argint(2, &prot);
+  argint(3, &flags);
+  argfd(4,&fd,&f);
+  argint(5,&offset);
+
+  mmap((void*)addr,length,prot,flags,f,offset);
+
+  return 0;
+}
+
+// unmaps a VMA or part of it
+uint64
+sys_munmap(void)
+{
+  return 0;
+}

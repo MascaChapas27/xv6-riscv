@@ -23,6 +23,8 @@ int sys_mmap(void){
 
     // Recorrer array de vmas y pillar la primera libre
 
+    // Encontrar un sitio de la memoria virtual empezando arriba (pero sin contar las dos primeras páginas)
+
     // Rellenar los campos de la vma
 }
 
@@ -45,7 +47,7 @@ int sys_munmap(void){
 - La llamada munmap no permite hacer agujeros: permite cambiar el tamaño y cambiar la dirección, pero NO permite quitarle un cacho de enmedio. Por ejemplo, tengo un mapeo con las tres páginas de las direcciones 0x8000, 0x9000 y 0xA000. Si te digo munmap(0x9000,0x2000), entonces se queda en la página 0x8000 y ya está. Si se desmapea desde el principio, por ejemplo munmap(0x8000,0x2000), ahora se tiene una página, que es la 0xA000 (hay que cambiar la dirección de inicio).
 - Si se queda la longitud a cero, se tiene que poner la VMA como no utilizada y quitarla de la lista de VMAs
 
-- Fallos de página otra vez: al acceder por primera vez a un fichero mapeado en memoria habrá un fallo de página. Hay que hacer lazy alloc como en ASO pero los traps son distintos porque esto es RISC-V (causa 13: lectura, causa 15: escritura).
+- Fallos de página otra vez: al acceder por primera vez a un fichero mapeado en memoria habrá un fallo de página. Hay que hacer lazy alloc como en ASO pero los traps son distintos porque esto es RISC-V (causa 13: lectura, causa 15: escritura). USAR MAPPAGES CON UNA SOLA PAGINA PARA PODER HACERLO.
 - Los traps están en kernel/trap.c. en usertrap() se indica cuando hay un trap en modo usuario. con r_scause() se puede saber qué causa es. Si es 13 y 15 entonces es lectura/escritura, se mapea la página. A lo mejor el mapeo se puede hacer con copyout. Se puede dar que el kernel esté haciendo una llamada al sistema con un VMA de usuario y este todavía no esté mapeado. Parecería que el kernel ha dado trap por VMA pero en realidad la VMA es del usuario. Dice el profe que esto nunca debería pasar en los tests pero que ya dirá.
 - Comprobar que la dirección de fallo tiene sentido (está en una VMA). Comprobar que estamos en usuario. Ir al fichero, leer una página, meterla en un marco de página, asociarla a la tabla de páginas, regresar.
 - Al abrir un fichero mapeado hay que mantener el número de referencias activas. Si se hace close antes de tiempo es como que no tenemos abierto el fichero y lo pueden eliminar mientras lo tenemos mapeado. Solo se baja el contador de referencias al hacer munmap de todo. Mirar sys_open o sys_dup para ver cómo se incrementa o decrementa el número de referencias.
@@ -60,7 +62,7 @@ int sys_munmap(void){
 - Tener en cuenta si el mapeo es compartido o privado. Si es compartido hay que escribir las páginas en disco al hacer munmap()
 
 ###########################################
-######## SEGUNDA PARTE (OPCIONAL) #########
+####### SEGUNDA PARTE (OPCIONAL??) ########
 ###########################################
 
 - Si dos procesos tienen el mismo fichero abierto, que compartan las páginas físicas.

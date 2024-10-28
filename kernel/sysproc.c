@@ -121,27 +121,3 @@ sys_getpinfo(void)
   
   return 0;
 }
-
-// maps a file into a VMA
-uint64
-sys_mmap(void)
-{
-  // Sacar argumentos
-
-  // Comprobar que todo está nashei
-
-  // Hacer cosicas
-  return 0;
-}
-
-// unmaps a VMA or part of it
-uint64
-sys_munmap(void)
-{
-  // Sacar argumentos
-
-  // Comprobar que todo está nashei
-
-  // Hacer cosicas
-  return 0;
-}

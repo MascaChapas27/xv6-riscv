@@ -88,12 +88,12 @@ struct trapframe {
 // Information about a Virtual Memory Area
 struct VMA {
     int used;               // 0 if unused, 1 if used
-    uint64 addrBegin;       // Virtual address where this VMA begins (must be a multiple of PGSIZE)
-    uint64 length;          // Size of the VMA in bytes (must be a multiple of PGSIZE)
+    void* addrBegin;       // Virtual address where this VMA begins (must be a multiple of PGSIZE)
+    int length;          // Size of the VMA in bytes (must be a multiple of PGSIZE)
     int prot;               // Protection (read and/or write, or none)
     int flags;              // Sharing flags (private, shared)
-    uint64 offset;          // How far from the beginning of the virtual address space this VMA is located in bytes (must be a multiple of PGSIZE)
-    struct file* mapFile;   // The file that is being mapped
+    int offset;          // From what byte in the file we are mapping
+    struct file* mappedFile;   // The file that is being mapped
 };
 
 // Protection bits for a VMA
