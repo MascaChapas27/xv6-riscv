@@ -229,6 +229,7 @@ mmap(void *addr, int length, int prot, int flags, struct file* f, int offset){
   // abajo. Colocaremos la siguiente justo debajo. Esto se puede hacer así porque hemos comprobado
   // al principio que length es múltiplo del tamaño de página y distinto de cero
   chosenVMA->addrBegin = addrLowestVMA-length;
+  printf("DEBUG: mmapeado fichero a %p\n",chosenVMA->addrBegin);
 
   // Es importante aumentar el número de referencias del fichero para que no sea liberado cuando
   // se cierre pero aún permanezca la VMA mapeada
