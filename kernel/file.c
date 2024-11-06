@@ -180,12 +180,62 @@ filewrite(struct file *f, uint64 addr, int n)
   return ret;
 }
 
+// Escribe en un punto específico de un nodo-i en vez de al final
+int
+inodeinsert(struct file *f, uint64 addr, int n, uint64 offset)
+{
+  int r, ret = 0;
+
+  if(f->writable == 0)
+    return -1;
+
+  if(f->type == FD_INODE){
+    // write a few blocks at a time to avoid exceeding
+    // the maximum log transaction size, including
+    // i-node, indirect block, allocation blocks,
+    // and 2 blocks of slop for non-aligned writes.
+    // this really belongs lower down, since writei()
+    // might be writing a device like the console.
+    int max = ((MAXOPBLOCKS-1-1-2) / 2) * BSIZE;
+    int i = 0;
+    while(i < n){
+      int n1 = n - i;
+      if(n1 > max)
+        n1 = max;
+
+      begin_op();
+      ilock(f->ip);
+      if ((r = writei(f->ip, 1, addr + i, offset+i, n1)) > 0)
+        f->off += r;
+      iunlock(f->ip);
+      end_op();
+
+      if(r != n1){
+        // error from writei
+        break;
+      }
+      i += r;
+    }
+    ret = (i == n ? n : -1);
+  } else {
+    panic("inodeinsert: called with a non-inode file");
+  }
+
+  return ret;
+}
+
 void *
 mmap(void *addr, int length, int prot, int flags, struct file* f, int offset){
 
   // No se pueden mapear 0 bytes o una longitud que no sea múltiplo del tamaño de página
   if(length == 0 || length % PGSIZE != 0){
-    return (void*)0xffffffffffffffff;
+    return ((void*)(char*) -1);
+  }
+
+  // Si un fichero se mapea de forma compartida y no se puede escribir, tampoco se puede
+  // en su mapeo
+  if(!f->writable && (flags & MAP_SHARED) && (prot & PROT_WRITE)){
+    return ((void*)(char*) -1);
   }
 
   struct proc* p = myproc();
@@ -199,7 +249,7 @@ mmap(void *addr, int length, int prot, int flags, struct file* f, int offset){
 
   // No hay VMAs disponibles
   if(vmaIndex >= MAX_VMAS){
-    return (void*)0xffffffffffffffff;
+    return ((void*)(char*) -1);
   }
 
   struct VMA * chosenVMA = &(p->vmas[vmaIndex]);
@@ -244,5 +294,57 @@ munmap(void *addr, int length){
 
   // Si la longitud final de la VMA llega a 0, poner la VMA a unused y hacer fileclose()
 
-  return -1;
+  struct proc* p = myproc();
+
+  int vmaIndex = 0;
+
+  // Encontrar la VMA
+  while(vmaIndex < MAX_VMAS && !(p->vmas[vmaIndex].used && (p->vmas[vmaIndex].addrBegin <= addr && addr < (void*)((uint64)p->vmas[vmaIndex].addrBegin + (uint64)p->vmas[vmaIndex].length)))){
+    vmaIndex++;
+  }
+
+  // La dirección no pertenece a ninguna VMA
+  if(vmaIndex >= MAX_VMAS){
+    return -1;
+  }
+
+  struct VMA * chosenVMA = &(p->vmas[vmaIndex]);
+
+  // No se pueden hacer huecos enmedio
+  if(addr != chosenVMA->addrBegin && (addr+length != chosenVMA->addrBegin+chosenVMA->length)){
+    return -1;
+  }
+
+  char data[PGSIZE];
+
+  if(addr == chosenVMA->addrBegin)
+
+  for(uint64 i=0;i*PGSIZE < length;i++){
+    
+    // Si la página está sucia, se escribe en el fichero
+    if(*walk(p->pagetable,(uint64)(addr+i*PGSIZE),0) & PTE_D){
+      // Se copian los datos del usuario al kernel y se escriben en el fichero
+      copyin(p->pagetable,data,(uint64)addr,PGSIZE);
+      inodeinsert(chosenVMA->mappedFile,data,PGSIZE,chosenVMA->mappedFile->off+i*PGSIZE);
+    }
+  }
+
+  // Se modifica la longitud y la dirección de inicio si es necesario
+  if(addr == chosenVMA->addrBegin){
+    chosenVMA->addrBegin = addr+length;
+    chosenVMA->length-=length;
+  } else if (addr+length != chosenVMA->addrBegin+chosenVMA->length){
+    chosenVMA->length-=length;
+  } else {
+    // No se pueden hacer huecos enmedio
+    return -1;
+  }
+
+  // Si el mapeo se queda vacío, se borra
+  if(chosenVMA->length == 0){
+    chosenVMA->used = 0;
+    fileclose(chosenVMA->mappedFile);
+  }
+
+  return 0;
 }

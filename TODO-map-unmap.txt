@@ -1,3 +1,10 @@
+Checklist:
+- Fallo de página en usertrap()
+- Modificados fork y exit
+- 1ª fase acabada, los test funcionan
+- Compartición de páginas padre/hijos
+- nose que pone ahí profe vaya rayajo
+
 ################################
 ######## PRIMERA PARTE #########
 ################################

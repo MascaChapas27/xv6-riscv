@@ -522,14 +522,17 @@ sys_mmap(void)
   argfd(4,&fd,&f);
   argint(5,&offset);
 
-  mmap((void*)addr,length,prot,flags,f,offset);
-
-  return 0;
+  return (uint64)mmap((void*)addr,length,prot,flags,f,offset);
 }
 
 // unmaps a VMA or part of it
 uint64
 sys_munmap(void)
 {
-  return 0;
+  uint64 addr;
+  int length;
+  argaddr(0, &addr);
+  argint(1, &length);
+  
+  return (uint64)munmap((void*)addr,length);
 }

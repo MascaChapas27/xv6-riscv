@@ -66,8 +66,7 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
-    // ok
+
   } else if(r_scause() == 13 || r_scause() == 15){
     // Fallo de página al leer (13) o al escribir (15) mientras se ejecutaba código de usuario
 
@@ -79,7 +78,7 @@ usertrap(void)
 
     int vmaIndex = 0;
 
-    while(vmaIndex < MAX_VMAS && !(p->vmas[vmaIndex].used && (p->vmas[vmaIndex].addrBegin >= faultAddr && faultAddr < (void*)((uint64)p->vmas[vmaIndex].addrBegin + (uint64)p->vmas[vmaIndex].length)))){
+    while(vmaIndex < MAX_VMAS && !(p->vmas[vmaIndex].used && (p->vmas[vmaIndex].addrBegin <= faultAddr && faultAddr < (void*)((uint64)p->vmas[vmaIndex].addrBegin + (uint64)p->vmas[vmaIndex].length)))){
       vmaIndex++;
     }
 
@@ -91,6 +90,9 @@ usertrap(void)
 
     // Si la dirección pertenece a una VMA, primero sacamos una página física
     char *physPage = (char*)kalloc();
+
+    // Llenamos la página de ceros por si acaso
+    memset(physPage,0,PGSIZE);
 
     // Ahora, la llenamos con los siguientes 4096 (como máximo) bytes de datos del fichero. Tenemos
     // que obtener el cerrojo del fichero primero
@@ -109,6 +111,8 @@ usertrap(void)
 
     mappages(p->pagetable,(uint64)faultAddr,PGSIZE,(uint64)physPage,perm);
 
+  } else if((which_dev = devintr()) != 0){
+    // ok
   } else {
     printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
     printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
@@ -201,7 +205,7 @@ kerneltrap()
 
     int vmaIndex = 0;
 
-    while(vmaIndex < MAX_VMAS && !(p->vmas[vmaIndex].used && (p->vmas[vmaIndex].addrBegin >= faultAddr && faultAddr < (void*)((uint64)p->vmas[vmaIndex].addrBegin + (uint64)p->vmas[vmaIndex].length)))){
+    while(vmaIndex < MAX_VMAS && !(p->vmas[vmaIndex].used && (p->vmas[vmaIndex].addrBegin <= faultAddr && faultAddr < (void*)((uint64)p->vmas[vmaIndex].addrBegin + (uint64)p->vmas[vmaIndex].length)))){
       vmaIndex++;
     }
 

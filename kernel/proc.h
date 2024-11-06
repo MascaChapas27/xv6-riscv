@@ -97,12 +97,12 @@ struct VMA {
 };
 
 // Protection bits for a VMA
-#define PROT_READ   0x00000001U
-#define PROT_WRITE  0X00000010U
+#define PROT_READ   1
+#define PROT_WRITE  (1 << 1)
 
 // Sharing flags for a VMA
-#define MAP_PRIVATE 0x00000001U
-#define MAP_SHARED  0X00000010U
+#define MAP_PRIVATE 1
+#define MAP_SHARED  (1 << 1)
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
