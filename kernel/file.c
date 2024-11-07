@@ -322,10 +322,10 @@ munmap(void *addr, int length){
   for(uint64 i=0;i*PGSIZE < length;i++){
     
     // Si la página está sucia, se escribe en el fichero
-    if(*walk(p->pagetable,(uint64)(addr+i*PGSIZE),0) & PTE_D){
+    if(walk(p->pagetable,(uint64)(addr+i*PGSIZE),0) != 0 && *walk(p->pagetable,(uint64)(addr+i*PGSIZE),0) & PTE_D){
       // Se copian los datos del usuario al kernel y se escriben en el fichero
       copyin(p->pagetable,data,(uint64)addr,PGSIZE);
-      inodeinsert(chosenVMA->mappedFile,data,PGSIZE,chosenVMA->mappedFile->off+i*PGSIZE);
+      inodeinsert(chosenVMA->mappedFile,(uint64)data,PGSIZE,chosenVMA->mappedFile->off+i*PGSIZE);
     }
   }
 

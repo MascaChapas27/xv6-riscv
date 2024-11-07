@@ -211,8 +211,8 @@ kerneltrap()
 
     // La dirección no pertenece a ninguna VMA
     if(vmaIndex >= MAX_VMAS){
-      printf("usertrap(): fallo de página en la dirección %p\n", (void*)r_stval());
-      setkilled(p);
+      printf("kerneltrap(): fallo de página en la dirección %p\n", (void*)r_stval());
+      panic("aaamai");
     }
 
     // Si la dirección pertenece a una VMA, primero sacamos una página física
