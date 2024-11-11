@@ -292,6 +292,8 @@ mmap(void *addr, int length, int prot, int flags, struct file* f, int offset){
 int
 munmap(void *addr, int length){
 
+  // printf("DEBUG: desmmapeando fichero de %p hasta %p\n",addr,(void*)(addr+length));
+
   // Si la longitud final de la VMA llega a 0, poner la VMA a unused y hacer fileclose()
 
   struct proc* p = myproc();
@@ -317,12 +319,11 @@ munmap(void *addr, int length){
 
   char data[PGSIZE];
 
-  if(addr == chosenVMA->addrBegin)
-
   for(uint64 i=0;i*PGSIZE < length;i++){
     
-    // Si la página está sucia, se escribe en el fichero
-    if(walk(p->pagetable,(uint64)(addr+i*PGSIZE),0) != 0 && *walk(p->pagetable,(uint64)(addr+i*PGSIZE),0) & PTE_D){
+    // Si la página está presente y sucia, se escribe en el fichero
+    pte_t* pteptr = walk(p->pagetable,(uint64)(addr+i*PGSIZE),0);
+    if(pteptr != 0 && *pteptr & PTE_V && *pteptr & PTE_D){
       // Se copian los datos del usuario al kernel y se escriben en el fichero
       copyin(p->pagetable,data,(uint64)addr,PGSIZE);
       inodeinsert(chosenVMA->mappedFile,(uint64)data,PGSIZE,chosenVMA->mappedFile->off+i*PGSIZE);

@@ -12,7 +12,8 @@
     "fs.h": "c",
     "proc.h": "c",
     "spinlock.h": "c",
-    "file.h": "c"
+    "file.h": "c",
+    "cstdio": "c"
   },
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",

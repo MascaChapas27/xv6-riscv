@@ -196,6 +196,7 @@ kerneltrap()
     // Se tiene que conseguir el proceso de usuario que hizo la llamada al sistema que causó
     // el fallo de página
     struct proc* p = myproc();
+    printf("DEBUG: p->pid = %d\n",p->pid);
 
     // Primero, se comprueba si la dirección que ha dado fallo (stval) está dentro de alguna VMA
     // (se saca la dirección del primer byte de la página en la que se encuentra para simplificar)
