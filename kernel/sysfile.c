@@ -533,7 +533,6 @@ sys_munmap(void)
   int length;
   argaddr(0, &addr);
   argint(1, &length);
-  printf("DEBUG: desmapeando desde %p hasta %p\n",(void*)addr, (void*)(addr+length));
 
   return (uint64)munmap((void*)addr,length);
 }

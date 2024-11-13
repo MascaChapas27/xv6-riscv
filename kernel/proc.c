@@ -398,6 +398,13 @@ exit(int status)
 
   release(&wait_lock);
 
+  // Free all mapped VMAs
+  for(int i=0;i<MAX_VMAS;i++){
+    if(p->vmas[i].used){
+      munmap(p->vmas[i].addrBegin,p->vmas[i].length);
+    }
+  }
+
   // Jump into the scheduler, never to return.
   sched();
   panic("zombie exit");
