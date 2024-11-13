@@ -84,12 +84,15 @@ usertrap(void)
 
     // La dirección no pertenece a ninguna VMA
     if(vmaIndex >= MAX_VMAS){
-      printf("usertrap(): fallo de página en la dirección %p\n", (void*)r_stval());
+      printf("usertrap: vma_address %p not in vmas\n", (void*)r_stval());
       setkilled(p);
     }
 
     // Si la dirección pertenece a una VMA, primero sacamos una página física
     char *physPage = (char*)kalloc();
+
+    if(physPage == 0)
+      panic("usertrap: kallocn't");
 
     // Llenamos la página de ceros por si acaso
     memset(physPage,0,PGSIZE);
@@ -212,8 +215,9 @@ kerneltrap()
 
     // La dirección no pertenece a ninguna VMA
     if(vmaIndex >= MAX_VMAS){
-      printf("kerneltrap(): fallo de página en la dirección %p\n", (void*)r_stval());
-      panic("aaamai");
+      //printf("kerneltrap(): fallo de página en la dirección %p\n", (void*)r_stval());
+      printf("vmaIndex: %d\n", vmaIndex);
+      panic("kerneltrap: vma_index outside bounds");
     }
 
     // Si la dirección pertenece a una VMA, primero sacamos una página física

@@ -262,9 +262,9 @@ mmap(void *addr, int length, int prot, int flags, struct file* f, int offset){
   chosenVMA->mappedFile = f;
   chosenVMA->used = 1;
 
-  // Se comprueba la dirección de memoria de la VMA más abajo (se comienza por el final quitándole 2
-  // páginas, ya que nos saltamos el trampolín y el trapframe. Nos estaríamos colocando justo en el
-  // comienzo del trapframe)
+  // Se comprueba la dirección de memoria de la VMA más reciente; aquella con VA más baja.
+  // Empieza buscando por la VA más alta, quitando la página trampolín y el trapframe.
+  // Nos estaríamos colocando justo en el comienzo del trapframe.
   void* addrLowestVMA = (void*)(MAXVA - 2*PGSIZE);
 
   for(int i=0;i<MAX_VMAS;i++){
@@ -292,16 +292,30 @@ mmap(void *addr, int length, int prot, int flags, struct file* f, int offset){
 int
 munmap(void *addr, int length){
 
-  // printf("DEBUG: desmmapeando fichero de %p hasta %p\n",addr,(void*)(addr+length));
+  /**
+   * #1. Obtener la VMA que contiene a addr
+   * #2. Escribir en disco si es mapeo compartido
+   * #3. Borrar mapeo con addr y length
+   * #4. Liberar fichero si se borra mapeo entero
+   */
 
-  // Si la longitud final de la VMA llega a 0, poner la VMA a unused y hacer fileclose()
-
+  // #1. Obtener la VMA que contiene a addr
   struct proc* p = myproc();
 
   int vmaIndex = 0;
 
-  // Encontrar la VMA
-  while(vmaIndex < MAX_VMAS && !(p->vmas[vmaIndex].used && (p->vmas[vmaIndex].addrBegin <= addr && addr < (void*)((uint64)p->vmas[vmaIndex].addrBegin + (uint64)p->vmas[vmaIndex].length)))){
+  // Dirección inferior y superior del bloque que contiene addr
+  uint64 start_addr_vma = PGROUNDDOWN((uint64)addr);
+  uint64 end_addr_vma = PGROUNDDOWN((uint64)addr+length);
+
+  // Buscamos la VMA que contiene el bloque en cuestión
+  while(vmaIndex < MAX_VMAS){
+    if(p->vmas[vmaIndex].used == 1){
+      // addr contenido en VMA por abajo y por arriba (o podría ser de otro VMA más específico)
+      if((uint64)p->vmas[vmaIndex].addrBegin <= start_addr_vma && 
+        end_addr_vma <= ((uint64)p->vmas[vmaIndex].addrBegin + p->vmas[vmaIndex].length))
+      break;
+    }
     vmaIndex++;
   }
 
@@ -310,42 +324,43 @@ munmap(void *addr, int length){
     return -1;
   }
 
-  struct VMA * chosenVMA = &(p->vmas[vmaIndex]);
+  struct VMA * vma = &(p->vmas[vmaIndex]);
 
-  // No se pueden hacer huecos enmedio
-  if(addr != chosenVMA->addrBegin && (addr+length != chosenVMA->addrBegin+chosenVMA->length)){
+  // No permitir agujeros en la VMA
+  if(addr != vma->addrBegin && 
+      (addr+length != vma->addrBegin + vma->length)){
     return -1;
+  } 
+
+  // #2 Escribir en disco si es mapeo compartido
+  if(vma->flags & MAP_SHARED){
+    struct file *f = vma->mappedFile;
+    begin_op();
+    ilock(f->ip);
+    writei(f->ip, 1, (uint64)vma->addrBegin, 0, vma->length);
+    iunlock(f->ip);
+    end_op();
   }
 
-  char data[PGSIZE];
-
-  for(uint64 i=0;i*PGSIZE < length;i++){
-    
-    // Si la página está presente y sucia, se escribe en el fichero
-    pte_t* pteptr = walk(p->pagetable,(uint64)(addr+i*PGSIZE),0);
-    if(pteptr != 0 && *pteptr & PTE_V && *pteptr & PTE_D){
-      // Se copian los datos del usuario al kernel y se escriben en el fichero
-      copyin(p->pagetable,data,(uint64)addr,PGSIZE);
-      inodeinsert(chosenVMA->mappedFile,(uint64)data,PGSIZE,chosenVMA->mappedFile->off+i*PGSIZE);
+  // #3 Borrar mapeo con addr y length
+  pte_t *pte;
+  for(int I = start_addr_vma; I <= end_addr_vma; I+=PGSIZE){
+    if((pte = walk(p->pagetable, I, 0)) == 0) {
+      if(*pte & PTE_V) {
+        uvmunmap(p->pagetable, I, PGSIZE, 0);
+        vma->length -= PGSIZE;
+      }
     }
   }
 
-  // Se modifica la longitud y la dirección de inicio si es necesario
-  if(addr == chosenVMA->addrBegin){
-    chosenVMA->addrBegin = addr+length;
-    chosenVMA->length-=length;
-  } else if (addr+length != chosenVMA->addrBegin+chosenVMA->length){
-    chosenVMA->length-=length;
-  } else {
-    // No se pueden hacer huecos enmedio
-    return -1;
-  }
-
+  // #4. Liberar fichero si se borra mapeo entero
   // Si el mapeo se queda vacío, se borra
-  if(chosenVMA->length == 0){
-    chosenVMA->used = 0;
-    fileclose(chosenVMA->mappedFile);
+  if(vma->length == 0){
+    vma->used = 0;
+    fileclose(vma->mappedFile);
+    vma->mappedFile = 0;
   }
+  // Ajustar la información en VMA.
 
   return 0;
 }

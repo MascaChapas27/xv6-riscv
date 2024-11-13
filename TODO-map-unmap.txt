@@ -77,3 +77,5 @@ int sys_munmap(void){
     - Si es copia privativa hay que copy-on-write.
 
 - El exec no lee el código y datos y demás directamente sino que lo hace bajo demanda.
+
+- La syscall mmap debería aceptar tamaños de mapeos que no sean múltiplos de una página, aunque de igual manera se redondee.
