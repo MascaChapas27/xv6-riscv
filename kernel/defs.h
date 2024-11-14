@@ -40,6 +40,7 @@ int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
 void *          mmap(void *addr, int length, int prot, int flags, struct file* f, int offset);
 int             munmap(void *addr, int length);
+int             vmacopy(struct proc *p, struct proc * np);
 
 // fs.c
 void            fsinit(int);

@@ -291,29 +291,22 @@ mmap(void *addr, int length, int prot, int flags, struct file* f, int offset){
 
 int
 munmap(void *addr, int length){
-
-  /**
-   * #1. Obtener la VMA que contiene a addr
-   * #2. Escribir en disco si es mapeo compartido
-   * #3. Borrar mapeo con addr y length
-   * #4. Liberar fichero si se borra mapeo entero
-   */
-
-  // #1. Obtener la VMA que contiene a addr
+  // #1. Obtener la VMA que contiene la dirección addr
   struct proc* p = myproc();
 
   int vmaIndex = 0;
 
-  // Dirección inferior y superior del bloque que contiene addr
+  // Dirección inferior y superior del bloque/s que contiene addr
   uint64 start_addr_vma = PGROUNDDOWN((uint64)addr);
   uint64 end_addr_vma = PGROUNDDOWN((uint64)addr+length);
 
   // Buscamos la VMA que contiene el bloque en cuestión
   while(vmaIndex < MAX_VMAS){
     if(p->vmas[vmaIndex].used == 1){
-      // addr contenido en VMA por abajo y por arriba (o podría ser de otro VMA más específico)
-      if((uint64)p->vmas[vmaIndex].addrBegin <= start_addr_vma && 
-        end_addr_vma <= ((uint64)p->vmas[vmaIndex].addrBegin + p->vmas[vmaIndex].length))
+      // addr contenido en VMA por abajo y por arriba
+      uint64 addrFinal = (uint64)p->vmas[vmaIndex].addrBegin + p->vmas[vmaIndex].length;
+      uint64 addrInicial = (uint64)p->vmas[vmaIndex].addrBegin;
+      if(addrInicial <= start_addr_vma && end_addr_vma <= addrFinal)
       break;
     }
     vmaIndex++;
@@ -354,13 +347,33 @@ munmap(void *addr, int length){
   }
 
   // #4. Liberar fichero si se borra mapeo entero
-  // Si el mapeo se queda vacío, se borra
   if(vma->length == 0){
     vma->used = 0;
     fileclose(vma->mappedFile);
     vma->mappedFile = 0;
   }
-  // Ajustar la información en VMA.
+
+  return 0;
+}
+
+/**
+ * Copy p vma table used entries in np vma table
+ * 
+ * @returns 0 on success, -1 on error.
+ */
+int
+vmacopy(struct proc *p, struct proc * np){
+
+  if(!p || !np) return -1;
+
+  for(int i=0; i < NELEM(p->vmas); i++){
+    // Found used vma entry in p, dup in np
+    if(p->vmas[i].used == 1){
+      // Also increment file reference, now another proc points to the file
+      filedup(p->vmas[i].mappedFile);
+      np->vmas[i] = p->vmas[i];
+    }
+  }
 
   return 0;
 }

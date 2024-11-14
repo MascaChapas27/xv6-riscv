@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "pstat.h"
 #include "defs.h"
+#include "file.h"
 
 static unsigned int seed = 69;
 
@@ -313,6 +314,9 @@ fork(void)
 
   // Restart number of ticks
   np->clockticks = 0;
+
+  // Copy parent VMAs to child.
+  vmacopy(p, np);
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
