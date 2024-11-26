@@ -253,7 +253,6 @@ fork_test(void)
   if (pid == 0) {
     _v1(p1);
     munmap(p1, PGSIZE); // just the first page
-    printf("DEBUG: mondongo\n");
     exit(0); // tell the parent that the mapping looks OK.
   }
 
