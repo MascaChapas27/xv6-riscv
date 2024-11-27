@@ -294,7 +294,7 @@ munmap(void *addr, int length){
 
   if(length == 0) return 0;
   // Evitar con PGSIZE que un desmapeo de 1 pag desmapee 2.
-  if(length % PGSIZE == 0) length -= 1; 
+  if(length % PGSIZE == 0) length -= 1;
 
   // #1. Obtener la VMA que contiene la dirección addr
   struct proc* p = myproc();
@@ -334,7 +334,7 @@ munmap(void *addr, int length){
     struct file *f = v->mappedFile;
     begin_op();
     ilock(f->ip);
-    writei(f->ip, 1, (uint64)start_pg, 0, v->length);
+    writei(f->ip, 1, start_pg, v->offset+(start_pg-(uint64)(v->addrBegin)), v->length);
     iunlock(f->ip);
     end_op();
   }
@@ -352,7 +352,10 @@ munmap(void *addr, int length){
     // Si borramos la primera página de la vma, hay que poner la siguiente como dir de inicio
     // En caso de borrar todo, no pasa nada por que apunte a una dir incorrecta, ya que se borrará
     // todo al liberar la estructura en el el punto #4
-    if(i == (uint64)v->addrBegin) v->addrBegin +=PGSIZE; 
+    if(i == (uint64)v->addrBegin) {
+      v->addrBegin += PGSIZE;
+      v->offset += PGSIZE;
+    }
     v->length = v->length - PGSIZE;
   }
 
@@ -379,7 +382,7 @@ vmacopy(struct proc *p, struct proc * np){
 
   if(!p || !np) return -1;
 
-  for(int i=0; i < NELEM(p->vmas); i++){
+  for(int i=0; i < MAX_VMAS; i++){
     // Found used vma entry in p, dup in np
     // Increment file reference, as another proc points to the file
     if(p->vmas[i].used == 1){
@@ -390,7 +393,7 @@ vmacopy(struct proc *p, struct proc * np){
       nv->length = v->length;
       nv->mappedFile = filedup(v->mappedFile);
       nv->offset = v->offset;
-      nv->prot = v->offset;
+      nv->prot = v->prot;
       nv->used = v->used;
     }
   }

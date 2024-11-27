@@ -102,11 +102,11 @@ usertrap(void)
 
     struct inode* inodeptr = p->vmas[vmaIndex].mappedFile->ip;
     uint64 fileOffset = (uint64)(p->vmas[vmaIndex].offset + (faultAddr-p->vmas[vmaIndex].addrBegin));
-    //begin_op();
+
     ilock(inodeptr);
     readi(inodeptr,0,(uint64)physPage,fileOffset,PGSIZE);
     iunlock(inodeptr);
-    //end_op();
+
     // Ahora que se ha conseguido leer el contenido a una página física, tenemos que mapearla a una
     // página virtual en el proceso
 

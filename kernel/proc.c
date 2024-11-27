@@ -381,7 +381,15 @@ exit(int status)
       p->ofile[fd] = 0;
     }
   }
-  
+
+  // Free all mapped VMAs
+  for(int i=0;i<MAX_VMAS;i++){
+    if(p->vmas[i].used){
+      printf("DEBUG\n");
+      munmap(p->vmas[i].addrBegin,p->vmas[i].length);
+    }
+  }
+
   begin_op();
   iput(p->cwd);
   end_op();
@@ -401,14 +409,6 @@ exit(int status)
   p->state = ZOMBIE;
 
   release(&wait_lock);
-
-  // Free all mapped VMAs
-  for(int i=0;i<MAX_VMAS;i++){
-    if(p->vmas[i].used){
-      printf("DEBUG\n");
-      munmap(p->vmas[i].addrBegin,p->vmas[i].length);
-    }
-  }
   
 
   // Jump into the scheduler, never to return.

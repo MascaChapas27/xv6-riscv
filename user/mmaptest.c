@@ -233,7 +233,7 @@ fork_test(void)
   
   printf("fork_test starting\n");
   testname = "fork_test";
-  
+
   // mmap the file twice.
   makefile(f);
   if ((fd = open(f, O_RDONLY)) == -1)
@@ -259,7 +259,6 @@ fork_test(void)
   int status = -1;
   wait(&status);
   
-
   if(status != 0){
     printf("fork_test failed\n");
     exit(1);
