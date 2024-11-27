@@ -215,8 +215,6 @@ kerneltrap()
 
     // La dirección no pertenece a ninguna VMA
     if(vmaIndex >= MAX_VMAS){
-      //printf("kerneltrap(): fallo de página en la dirección %p\n", (void*)r_stval());
-      printf("vmaIndex: %d\n", vmaIndex);
       panic("kerneltrap: vma_index outside bounds");
     }
 

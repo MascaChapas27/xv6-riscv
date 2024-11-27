@@ -111,6 +111,11 @@ mmap_test(void)
   // offset in the file.
   //
   char *p = mmap(0, PGSIZE*2, PROT_READ, MAP_PRIVATE, fd, 0);
+  // DEBUG: BORRAR AL TERMINAR
+  char *q = mmap(0, PGSIZE*2, PROT_READ, MAP_PRIVATE, fd, 0);
+  printf("Munmapping\n");
+  munmap(q, PGSIZE*2);
+  // FINDEBUG
   if (p == MAP_FAILED)
     err("mmap (1)");
   _v1(p);
@@ -247,17 +252,19 @@ fork_test(void)
   // read just 2nd page.
   if(*(p1+PGSIZE) != 'A')
     err("fork mismatch (1)");
-
+  printf("Mondongo\n");
   if((pid = fork()) < 0)
     err("fork");
   if (pid == 0) {
     _v1(p1);
     munmap(p1, PGSIZE); // just the first page
+    printf("Mondongo 2\n");
     exit(0); // tell the parent that the mapping looks OK.
   }
 
   int status = -1;
   wait(&status);
+  
 
   if(status != 0){
     printf("fork_test failed\n");
