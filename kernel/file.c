@@ -279,7 +279,7 @@ mmap(void *addr, int length, int prot, int flags, struct file* f, int offset){
   // abajo. Colocaremos la siguiente justo debajo. Esto se puede hacer así porque hemos comprobado
   // al principio que length es múltiplo del tamaño de página y distinto de cero
   chosenVMA->addrBegin = addrLowestVMA-length;
-  printf("DEBUG: mmapeado fichero a %p\n",chosenVMA->addrBegin);
+  printf("DEBUG: mmap: Lazy mmap of pid %d at idx %d, addrBegin: %p, pages: %d\n",p->pid, vmaIndex, chosenVMA->addrBegin, chosenVMA->length/PGSIZE);
 
   // Es importante aumentar el número de referencias del fichero para que no sea liberado cuando
   // se cierre pero aún permanezca la VMA mapeada
@@ -330,10 +330,11 @@ munmap(void *addr, int length){
 
   // #2 Escribir en disco si es mapeo compartido
   if(v->flags & MAP_SHARED){
+
     struct file *f = v->mappedFile;
     begin_op();
     ilock(f->ip);
-    writei(f->ip, 1, (uint64)v->addrBegin, 0, v->length);
+    writei(f->ip, 1, (uint64)start_pg, 0, v->length);
     iunlock(f->ip);
     end_op();
   }
@@ -343,8 +344,10 @@ munmap(void *addr, int length){
     // Lazy alloc puede dar lugar a la existencia de páginas no 
     // válidas si aún no han sido accedidas, debemos comprobar eso
     if(walkaddr(p->pagetable, i) != 0) {
-      printf("mondongo uvmunmap\n");
         uvmunmap(p->pagetable, i, 1, 0);
+        printf("DEBUG: munmap: Valid PTE fre'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
+    } else {
+      printf("DEBUG: munmap: Lazy PTE fre'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
     }
     // Si borramos la primera página de la vma, hay que poner la siguiente como dir de inicio
     // En caso de borrar todo, no pasa nada por que apunte a una dir incorrecta, ya que se borrará
@@ -378,10 +381,17 @@ vmacopy(struct proc *p, struct proc * np){
 
   for(int i=0; i < NELEM(p->vmas); i++){
     // Found used vma entry in p, dup in np
+    // Increment file reference, as another proc points to the file
     if(p->vmas[i].used == 1){
-      // Also increment file reference, now another proc points to the file
-      filedup(p->vmas[i].mappedFile);
-      np->vmas[i] = p->vmas[i];
+      struct VMA *v = &p->vmas[i];
+      struct VMA *nv = &np->vmas[i];
+      nv->addrBegin = v->addrBegin;
+      nv->flags = v->flags;
+      nv->length = v->length;
+      nv->mappedFile = filedup(v->mappedFile);
+      nv->offset = v->offset;
+      nv->prot = v->offset;
+      nv->used = v->used;
     }
   }
 

@@ -74,7 +74,7 @@ usertrap(void)
     // (se saca la dirección del primer byte de la página en la que se encuentra para simplificar)
     void* faultAddr = (void*)(r_stval() & ~(PGSIZE-1));
 
-    printf("DEBUG: fallo de página de usuario en la página %p, dirección %p\n", faultAddr,(void*)r_stval());
+    printf("DEBUG: usertrap: Lazy alloc miss of pid %d at dir %p, mapping...\n", p->pid, faultAddr);
 
     int vmaIndex = 0;
 
@@ -102,17 +102,21 @@ usertrap(void)
 
     struct inode* inodeptr = p->vmas[vmaIndex].mappedFile->ip;
     uint64 fileOffset = (uint64)(p->vmas[vmaIndex].offset + (faultAddr-p->vmas[vmaIndex].addrBegin));
-
+    //begin_op();
     ilock(inodeptr);
     readi(inodeptr,0,(uint64)physPage,fileOffset,PGSIZE);
     iunlock(inodeptr);
-
+    //end_op();
     // Ahora que se ha conseguido leer el contenido a una página física, tenemos que mapearla a una
     // página virtual en el proceso
 
     int perm = PTE_U | (p->vmas[vmaIndex].prot & PROT_READ ? PTE_R : 0) | (p->vmas[vmaIndex].prot & PROT_WRITE ? PTE_W : 0);
-
-    mappages(p->pagetable,(uint64)faultAddr,PGSIZE,(uint64)physPage,perm);
+    
+    if(mappages(p->pagetable,(uint64)faultAddr,PGSIZE,(uint64)physPage,perm) == 0){
+      printf("DEBUG: usertrap: mappages success.\n");
+    } else {
+      printf("DEBUG: usertrap: mappages error.\n");
+    }
 
   } else if((which_dev = devintr()) != 0){
     // ok
