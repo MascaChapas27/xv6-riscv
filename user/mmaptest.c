@@ -111,11 +111,7 @@ mmap_test(void)
   // offset in the file.
   //
   char *p = mmap(0, PGSIZE*2, PROT_READ, MAP_PRIVATE, fd, 0);
-  // DEBUG: BORRAR AL TERMINAR
-  char *q = mmap(0, PGSIZE*2, PROT_READ, MAP_PRIVATE, fd, 0);
-  printf("Munmapping\n");
-  munmap(q, PGSIZE*2);
-  // FINDEBUG
+
   if (p == MAP_FAILED)
     err("mmap (1)");
   _v1(p);
@@ -146,6 +142,7 @@ mmap_test(void)
   if (close(fd) == -1)
     err("close");
 
+  printf("DEBUG: mmap interesante\n");
   // check that mmap does allow read/write mapping of a
   // file opened read/write.
   if ((fd = open(f, O_RDWR)) == -1)

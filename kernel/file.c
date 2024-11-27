@@ -339,16 +339,17 @@ munmap(void *addr, int length){
   }
 
   // #3 Borrar mapeo con addr y length
-  pte_t *pte;
   for(uint64 i = start_pg; i <= end_pg; i+=PGSIZE){
     // Lazy alloc puede dar lugar a la existencia de páginas no 
     // válidas si aún no han sido accedidas, debemos comprobar eso
-    if((pte = walk(p->pagetable, i, 1)) == 0) {
-      if(*pte & PTE_V) {
+    if(walkaddr(p->pagetable, i) != 0) {
       printf("mondongo uvmunmap\n");
-        uvmunmap(p->pagetable, i, PGSIZE, 0);
-      }
+        uvmunmap(p->pagetable, i, 1, 0);
     }
+    // Si borramos la primera página de la vma, hay que poner la siguiente como dir de inicio
+    // En caso de borrar todo, no pasa nada por que apunte a una dir incorrecta, ya que se borrará
+    // todo al liberar la estructura en el el punto #4
+    if(i == (uint64)v->addrBegin) v->addrBegin +=PGSIZE; 
     v->length = v->length - PGSIZE;
   }
 
