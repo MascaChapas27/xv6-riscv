@@ -279,7 +279,7 @@ mmap(void *addr, int length, int prot, int flags, struct file* f, int offset){
   // abajo. Colocaremos la siguiente justo debajo. Esto se puede hacer así porque hemos comprobado
   // al principio que length es múltiplo del tamaño de página y distinto de cero
   chosenVMA->addrBegin = addrLowestVMA-length;
-  printf("DEBUG: mmapeado fichero a %p\n",chosenVMA->addrBegin);
+  printf("DEBUG: mmap: Lazy mmap of pid %d at idx %d, addrBegin: %p, pages: %d\n",p->pid, vmaIndex, chosenVMA->addrBegin, chosenVMA->length/PGSIZE);
 
   // Es importante aumentar el número de referencias del fichero para que no sea liberado cuando
   // se cierre pero aún permanezca la VMA mapeada
@@ -291,66 +291,82 @@ mmap(void *addr, int length, int prot, int flags, struct file* f, int offset){
 
 int
 munmap(void *addr, int length){
+
+  if(length == 0) return 0;
+  // Evitar con PGSIZE que un desmapeo de 1 pag desmapee 2.
+  if(length % PGSIZE == 0) length -= 1;
+
   // #1. Obtener la VMA que contiene la dirección addr
   struct proc* p = myproc();
+  int idx = 0;
+  struct VMA *v;
 
-  int vmaIndex = 0;
-
-  // Dirección inferior y superior del bloque/s que contiene addr
-  uint64 start_addr_vma = PGROUNDDOWN((uint64)addr);
-  uint64 end_addr_vma = PGROUNDDOWN((uint64)addr+length);
+  // Direcciones del primer y último bloque que contiene el rango a liberar
+  uint64 start_pg = PGROUNDDOWN((uint64)addr);
+  uint64 end_pg = PGROUNDDOWN((uint64)addr+length); 
 
   // Buscamos la VMA que contiene el bloque en cuestión
-  while(vmaIndex < MAX_VMAS){
-    if(p->vmas[vmaIndex].used == 1){
-      // addr contenido en VMA por abajo y por arriba
-      uint64 addrFinal = (uint64)p->vmas[vmaIndex].addrBegin + p->vmas[vmaIndex].length;
-      uint64 addrInicial = (uint64)p->vmas[vmaIndex].addrBegin;
-      if(addrInicial <= start_addr_vma && end_addr_vma <= addrFinal)
+  while(idx < MAX_VMAS){
+    v = &p->vmas[idx];
+    if(v->used == 1){
+      uint64 addrFinal = (uint64)v->addrBegin + v->length;
+      uint64 addrInicial = (uint64)v->addrBegin;
+      if(addrInicial <= start_pg && end_pg <= addrFinal) // Encontramos la vma
       break;
     }
-    vmaIndex++;
+    idx++;
   }
 
   // La dirección no pertenece a ninguna VMA
-  if(vmaIndex >= MAX_VMAS){
+  if(idx >= MAX_VMAS){
     return -1;
   }
 
-  struct VMA * vma = &(p->vmas[vmaIndex]);
-
   // No permitir agujeros en la VMA
-  if(addr != vma->addrBegin && 
-      (addr+length != vma->addrBegin + vma->length)){
+  if(addr != v->addrBegin && 
+      (addr+length != v->addrBegin + v->length)){
     return -1;
   } 
 
   // #2 Escribir en disco si es mapeo compartido
-  if(vma->flags & MAP_SHARED){
-    struct file *f = vma->mappedFile;
+  if(v->flags & MAP_SHARED){
+
+    struct file *f = v->mappedFile;
     begin_op();
     ilock(f->ip);
-    writei(f->ip, 1, (uint64)vma->addrBegin, 0, vma->length);
+    writei(f->ip, 1, start_pg, v->offset+(start_pg-(uint64)(v->addrBegin)), v->length);
     iunlock(f->ip);
     end_op();
   }
 
   // #3 Borrar mapeo con addr y length
-  pte_t *pte;
-  for(int I = start_addr_vma; I <= end_addr_vma; I+=PGSIZE){
-    if((pte = walk(p->pagetable, I, 0)) == 0) {
-      if(*pte & PTE_V) {
-        uvmunmap(p->pagetable, I, PGSIZE, 0);
-        vma->length -= PGSIZE;
-      }
+  for(uint64 i = start_pg; i <= end_pg; i+=PGSIZE){
+    // Lazy alloc puede dar lugar a la existencia de páginas no 
+    // válidas si aún no han sido accedidas, debemos comprobar eso
+    if(walkaddr(p->pagetable, i) != 0) {
+        uvmunmap(p->pagetable, i, 1, 0);
+        printf("DEBUG: munmap: Valid PTE fre'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
+    } else {
+      printf("DEBUG: munmap: Lazy PTE fre'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
     }
+    // Si borramos la primera página de la vma, hay que poner la siguiente como dir de inicio
+    // En caso de borrar todo, no pasa nada por que apunte a una dir incorrecta, ya que se borrará
+    // todo al liberar la estructura en el el punto #4
+    if(i == (uint64)v->addrBegin) {
+      v->addrBegin += PGSIZE;
+      v->offset += PGSIZE;
+    }
+    v->length = v->length - PGSIZE;
   }
 
   // #4. Liberar fichero si se borra mapeo entero
-  if(vma->length == 0){
-    vma->used = 0;
-    fileclose(vma->mappedFile);
-    vma->mappedFile = 0;
+  if(v->length == 0){
+    v->used = 0;
+    v->addrBegin = 0;
+    v->prot = 0;
+    v->flags = 0;
+    fileclose(v->mappedFile);
+    v->mappedFile = 0;
   }
 
   return 0;
@@ -366,12 +382,19 @@ vmacopy(struct proc *p, struct proc * np){
 
   if(!p || !np) return -1;
 
-  for(int i=0; i < NELEM(p->vmas); i++){
+  for(int i=0; i < MAX_VMAS; i++){
     // Found used vma entry in p, dup in np
+    // Increment file reference, as another proc points to the file
     if(p->vmas[i].used == 1){
-      // Also increment file reference, now another proc points to the file
-      filedup(p->vmas[i].mappedFile);
-      np->vmas[i] = p->vmas[i];
+      struct VMA *v = &p->vmas[i];
+      struct VMA *nv = &np->vmas[i];
+      nv->addrBegin = v->addrBegin;
+      nv->flags = v->flags;
+      nv->length = v->length;
+      nv->mappedFile = filedup(v->mappedFile);
+      nv->offset = v->offset;
+      nv->prot = v->prot;
+      nv->used = v->used;
     }
   }
 

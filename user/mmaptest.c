@@ -40,6 +40,7 @@ _v1(char *p)
   int i;
   for (i = 0; i < PGSIZE*2; i++) {
     if (i < PGSIZE + (PGSIZE/2)) {
+      if(i%PGSIZE == 0) printf("DEBUG: mmaptest _v1: Checking pag %d\n", i/PGSIZE);
       if (p[i] != 'A') {
         printf("mismatch at %d, wanted 'A', got 0x%x\n", i, p[i]);
         err("v1 mismatch (1)");
@@ -111,6 +112,7 @@ mmap_test(void)
   // offset in the file.
   //
   char *p = mmap(0, PGSIZE*2, PROT_READ, MAP_PRIVATE, fd, 0);
+
   if (p == MAP_FAILED)
     err("mmap (1)");
   _v1(p);
@@ -231,7 +233,7 @@ fork_test(void)
   
   printf("fork_test starting\n");
   testname = "fork_test";
-  
+
   // mmap the file twice.
   makefile(f);
   if ((fd = open(f, O_RDONLY)) == -1)
@@ -243,23 +245,20 @@ fork_test(void)
   char *p2 = mmap(0, PGSIZE*2, PROT_READ, MAP_SHARED, fd, 0);
   if (p2 == MAP_FAILED)
     err("mmap (5)");
-
   // read just 2nd page.
   if(*(p1+PGSIZE) != 'A')
     err("fork mismatch (1)");
-
   if((pid = fork()) < 0)
     err("fork");
   if (pid == 0) {
     _v1(p1);
     munmap(p1, PGSIZE); // just the first page
-    printf("DEBUG: mondongo\n");
     exit(0); // tell the parent that the mapping looks OK.
   }
 
   int status = -1;
   wait(&status);
-
+  
   if(status != 0){
     printf("fork_test failed\n");
     exit(1);
