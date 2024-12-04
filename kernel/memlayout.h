@@ -22,10 +22,12 @@
 
 // qemu puts UART registers here in physical memory.
 #define UART0 0x10000000L
+// TODO const unsigned long UART0;
 #define UART0_IRQ 10
 
 // virtio mmio interface
 #define VIRTIO0 0x10001000
+// TODO const unsigned long VIRTIO0;
 #define VIRTIO0_IRQ 1
 
 // qemu puts platform-level interrupt controller (PLIC) here.
