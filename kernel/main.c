@@ -12,6 +12,7 @@ void
 main()
 {
   if(cpuid() == 0){
+    dtb_init();      // Leer el Device Tree
     consoleinit();
     printfinit();
     printf("\n");
@@ -23,7 +24,6 @@ main()
     procinit();      // process table
     trapinit();      // trap vectors
     trapinithart();  // install kernel trap vector
-    dtb_init();      // Leer el Device Tree
     plicinit();      // set up interrupt controller
     plicinithart();  // ask PLIC for device interrupts
     binit();         // buffer cache

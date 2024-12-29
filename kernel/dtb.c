@@ -91,11 +91,12 @@ swap_uint64(uint64 val)
 void
 dtb_init(void)
 {
-    printf("amai1\n");
+    printf("dir: %lx\n",dtb_pa);
+    printf("check1\n");
     if (dtb_pa == 0) {
         panic("DTB address not set");
     }
-    printf("amai2\n");
+    printf("check2\n");
     struct fdt_header *header = (struct fdt_header *)dtb_pa;
     printf("dir: %p\n",header);
     printf("magico: %x\n",header->magic);
@@ -103,17 +104,17 @@ dtb_init(void)
     if (swap_uint32(header->magic) != FDT_MAGIC) {
         panic("Invalid FDT magic number");
     }
-printf("amai3\n");
+    printf("check3\n");
     // Obtener el tamaño total del DTB y verificar su integridad mínima
     dt_totalsize = swap_uint32(header->totalsize);
     if (dt_totalsize < sizeof(struct fdt_header)) {
         panic("DTB totalsize too small");
     }
-printf("amai4\n");
+    printf("check4\n");
     // Obtener los offsets a las secciones dt_struct y dt_strings
     dt_struct = (uint64)dtb_pa + swap_uint32(header->off_dt_struct);
     dt_strings = (uint64)dtb_pa + swap_uint32(header->off_dt_strings);
-printf("amai5\n");
+    printf("check5\n");
     // Parsear el árbol de dispositivos
     parse_fdt((void *)dt_struct, dt_totalsize - swap_uint32(header->off_dt_struct));
 }
@@ -122,7 +123,7 @@ printf("amai5\n");
 void
 parse_fdt(void *dt_struct_ptr, uint32 struct_size)
 {
-    printf("vamo\n");
+    printf("parsefdt\n");
     uint8 *end = (uint8 *)dt_struct_ptr + struct_size;
     uint32 *token = (uint32 *)dt_struct_ptr;
 
@@ -130,7 +131,7 @@ parse_fdt(void *dt_struct_ptr, uint32 struct_size)
 
     while ((uint8 *)token < end) {
 
-        printf("dxdddd %p\n",token);
+        printf("token: %p\n",token);
 
         uint32 tag = swap_uint32(*token++);
 
