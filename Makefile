@@ -82,16 +82,12 @@ endif
 LDFLAGS = -z max-page-size=4096
 
 
-$K/kernel: $(OBJS) $K/kernel.ld $U/initcode 
+$K/kernel: $(OBJS) $K/kernel.ld $K/virt.dtb $U/initcode 
 	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) 
 	$(OBJDUMP) -S $K/kernel > $K/kernel.asm
 	$(OBJDUMP) -t $K/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $K/kernel.sym
 
-# $K/virt.dtb: $K/virt.dts
-$K/virt.dtb:
-	qemu-system-riscv64 -machine dumpdtb=$K/virt.dtb -nographic -kernel $K/kernel
-
-$K/virt.dts: $K/virt.dtb
+$K/virt.dtb: $K/virt.dts
 	dtc -I dts -O dtb -o $K/virt.dtb $K/virt.dts
 
 $U/initcode: $U/initcode.S
@@ -148,9 +144,6 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-	$U/_lotterytest\
-	$U/_mmaptest\
-	$U/_ticketstest
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
@@ -180,7 +173,7 @@ QEMUOPTS += -global virtio-mmio.force-legacy=false
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 
-qemu: $K/kernel $K/virt.dtb fs.img
+qemu: $K/kernel fs.img
 	$(QEMU) $(QEMUOPTS)
 
 .gdbinit: .gdbinit.tmpl-riscv
@@ -189,4 +182,3 @@ qemu: $K/kernel $K/virt.dtb fs.img
 qemu-gdb: $K/kernel .gdbinit fs.img
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
-

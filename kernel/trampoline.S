@@ -11,7 +11,7 @@
         #
 
 #include "riscv.h"
-#include "memlayout.h"
+#include "memlayout_assembly.h"
 
 .section trampsec
 .globl trampoline

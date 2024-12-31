@@ -14,8 +14,20 @@ uint64 dtb_pa = 0;
 struct cpu_info cpu_info_array[MAX_CPUS];
 int cpu_count = 0;
 
-// Variable para almacenar la dirección base del UART
-uint64 uart_base = 0;
+// Variable global con la dirección base del UART
+uint64 UART0;
+
+// Variable global con el número de interrupción de UART
+uint64 UART0_IRQ;
+
+// Variable global con la dirección base del VIRTIO
+uint64 VIRTIO0;
+
+// Variable global con el número de interrupción de VIRTIO
+uint64 VIRTIO0_IRQ;
+
+// Variable global con la dirección base del PLIC
+uint64 PLIC;
 
 // Estructura que representa la cabecera del Device Tree Blob (DTB)
 struct fdt_header {
@@ -53,6 +65,10 @@ static uint64 dt_struct;
 static uint64 dt_strings;
 static uint32 dt_totalsize;
 
+// Número de address cells y size cells de cada nivel
+static uint32 addressCells[MAX_DEPTH];
+static uint32 sizeCells[MAX_DEPTH];
+
 // Variables para manejar la pila de nodos
 static char node_stack[MAX_DEPTH][MAX_NODE_NAME];
 static int current_depth = 0;
@@ -87,34 +103,48 @@ swap_uint64(uint64 val)
            ((val & 0xFF00000000000000ULL) >> 56);
 }
 
+// Obtiene una dirección de memoria en base a una o dos address cells
+uint64
+obtainAddress(void *ptr, uint32 len){
+    uint64 addr = 0;
+
+    if (len >= 8) { // 2 * 4 bytes para address cells
+        uint32 addr_high = swap_uint32(((uint32 *)ptr)[0]);
+        uint32 addr_low = swap_uint32(((uint32 *)ptr)[1]);
+        addr = ((uint64)addr_high << 32) | addr_low;
+    }
+    else if (len >= 4) { // Solo una address cell
+        addr = swap_uint32(*(uint32 *)ptr);
+    }
+
+    return addr;
+}
+
 // Función principal de inicialización del Device Tree
 void
 dtb_init(void)
 {
-    printf("dir: %lx\n",dtb_pa);
-    printf("check1\n");
     if (dtb_pa == 0) {
         panic("DTB address not set");
     }
-    printf("check2\n");
+
     struct fdt_header *header = (struct fdt_header *)dtb_pa;
-    printf("dir: %p\n",header);
-    printf("magico: %x\n",header->magic);
+
     // Verificar el magic number para asegurar que es un DTB válido
     if (swap_uint32(header->magic) != FDT_MAGIC) {
         panic("Invalid FDT magic number");
     }
-    printf("check3\n");
+
     // Obtener el tamaño total del DTB y verificar su integridad mínima
     dt_totalsize = swap_uint32(header->totalsize);
     if (dt_totalsize < sizeof(struct fdt_header)) {
         panic("DTB totalsize too small");
     }
-    printf("check4\n");
+
     // Obtener los offsets a las secciones dt_struct y dt_strings
     dt_struct = (uint64)dtb_pa + swap_uint32(header->off_dt_struct);
     dt_strings = (uint64)dtb_pa + swap_uint32(header->off_dt_strings);
-    printf("check5\n");
+
     // Parsear el árbol de dispositivos
     parse_fdt((void *)dt_struct, dt_totalsize - swap_uint32(header->off_dt_struct));
 }
@@ -123,15 +153,12 @@ dtb_init(void)
 void
 parse_fdt(void *dt_struct_ptr, uint32 struct_size)
 {
-    printf("parsefdt\n");
     uint8 *end = (uint8 *)dt_struct_ptr + struct_size;
     uint32 *token = (uint32 *)dt_struct_ptr;
 
     struct cpu_info *current_cpu = 0;
 
     while ((uint8 *)token < end) {
-
-        printf("token: %p\n",token);
 
         uint32 tag = swap_uint32(*token++);
 
@@ -155,6 +182,10 @@ parse_fdt(void *dt_struct_ptr, uint32 struct_size)
             }
 
             current_depth++;
+
+            // Se ponen a cero los address cells y size cells del nivel actual
+            addressCells[current_depth] = 0;
+            sizeCells[current_depth] = 0;
 
             // Avanzar el puntero token al siguiente token después del nombre del nodo
             token += (ALIGN4(name_len) / 4);
@@ -193,14 +224,36 @@ parse_fdt(void *dt_struct_ptr, uint32 struct_size)
             if (current_depth > 0) {
                 char *current_node = node_stack[current_depth - 1];
 
+                // printf("Nodo: [%s] Propiedad: [%s]\n",current_node,prop_name);
+
                 // Procesar propiedades de UART
-                if (strcmp_custom(current_node, "serial@10000000") == 0) {
-                    process_prop(prop_name, prop_value, len);
+                if (strncmp_custom(current_node, "serial", 6) == 0 || strncmp_custom(current_node, "uart", 4) == 0) {
+                    process_uart_prop(prop_name, prop_value, len);
+                }
+
+                // Procesar propiedades de VIRTIO
+                if (strncmp_custom(current_node, "virtio_mmio", 11) == 0) {
+                    process_virtio_prop(prop_name, prop_value, len);
+                }
+
+                // Procesar propiedades de PLIC
+                if (strncmp_custom(current_node, "interrupt-controller", 20) == 0) {
+                    process_plic_prop(prop_name, prop_value, len);
                 }
 
                 // Procesar propiedades de CPU si estamos dentro de un nodo CPU
                 if (current_cpu != 0) {
                     process_cpu_prop(prop_name, prop_value, len, current_cpu);
+                }
+
+                // Procesar número de address cells
+                if(strcmp_custom(prop_name, "#address-cells") == 0){
+                    addressCells[current_depth] = swap_uint32(((uint32 *)prop_value)[0]);
+                }
+
+                // Procesar número de size cells
+                if(strcmp_custom(prop_name, "#size-cells") == 0){
+                    sizeCells[current_depth] = swap_uint32(((uint32 *)prop_value)[0]);
                 }
 
                 // Procesar otras propiedades de nodos si es necesario
@@ -222,34 +275,92 @@ parse_fdt(void *dt_struct_ptr, uint32 struct_size)
         }
     }
 
-    // Validar que se haya cerrado todos los nodos
+    // Validar que se hayan cerrado todos los nodos
     if (current_depth != 0) {
         panic("Device Tree parsing ended with unclosed nodes");
     }
 }
 
+// Encuentra el número de #address-cells y #size-cells
+void
+findCells(uint32* argAddressCells, uint32* argSizeCells){
+    *argAddressCells = addressCells[current_depth];
+    *argSizeCells = sizeCells[current_depth];
+
+    uint32 depth = current_depth;
+
+    while(depth > 0 && *argAddressCells == 0 && *argSizeCells == 0){
+        depth--;
+        *argAddressCells = addressCells[depth];
+        *argSizeCells = sizeCells[depth];
+    }
+
+    if(depth == 0){
+        panic("No #address-cells and #size-cells found");
+    }
+}
+
 // Procesar propiedades específicas del nodo UART
 void
-process_prop(const char *prop_name, void *prop_value, uint32 len)
+process_uart_prop(const char *prop_name, void *prop_value, uint32 len)
 {
+    // Se leen las propiedades
     if (strcmp_custom(prop_name, "reg") == 0) {
-        // Interpretar la propiedad 'reg' considerando #address-cells y #size-cells
-        // Asumimos #address-cells=2 y #size-cells=1 (común en muchos sistemas)
-        if (len >= 8) { // 2 * 4 bytes para address cells
-            uint32 addr_high = swap_uint32(((uint32 *)prop_value)[0]);
-            uint32 addr_low = swap_uint32(((uint32 *)prop_value)[1]);
-            uint64 addr = ((uint64)addr_high << 32) | addr_low;
-            uart_base = addr;
-        }
-        else if (len >= 4) { // Solo una address cell
-            uint32 addr = swap_uint32(*(uint32 *)prop_value);
-            uart_base = (uint64)addr;
-        }
-        else {
+        uint32 currentAddressCells;
+        uint32 currentSizeCells;
+
+        findCells(&currentAddressCells,&currentSizeCells);
+
+        // Se comprueba que la longitud es correcta
+        if(len != 4*currentAddressCells + 4*currentSizeCells)
             panic("Invalid 'reg' property length for UART");
-        }
+
+        UART0 = obtainAddress(prop_value,4*currentAddressCells);
+
+    } else if (strcmp_custom(prop_name, "interrupts") == 0) {
+        UART0_IRQ = obtainAddress(prop_value,4);
     }
-    // Se pueden agregar más propiedades si es necesario
+}
+
+// Procesar propiedades específicas del nodo VIRTIO
+void
+process_virtio_prop(const char *prop_name, void *prop_value, uint32 len)
+{
+    // Se leen las propiedades
+    if (strcmp_custom(prop_name, "reg") == 0) {
+        uint32 currentAddressCells;
+        uint32 currentSizeCells;
+
+        findCells(&currentAddressCells,&currentSizeCells);
+
+        // Se comprueba que la longitud es correcta
+        if(len != 4*currentAddressCells + 4*currentSizeCells)
+            panic("Invalid 'reg' property length for VIRTIO");
+
+        VIRTIO0 = obtainAddress(prop_value,4*currentAddressCells);
+
+    } else if (strcmp_custom(prop_name, "interrupts") == 0) {
+        VIRTIO0_IRQ = obtainAddress(prop_value,4);
+    }
+}
+
+// Procesar propiedades específicas del nodo PLIC
+void
+process_plic_prop(const char *prop_name, void *prop_value, uint32 len)
+{
+    // Se leen las propiedades
+    if (strcmp_custom(prop_name, "reg") == 0) {
+        uint32 currentAddressCells;
+        uint32 currentSizeCells;
+
+        findCells(&currentAddressCells,&currentSizeCells);
+
+        // Se comprueba que la longitud es correcta
+        if(len != 4*currentAddressCells + 4*currentSizeCells)
+            panic("Invalid 'reg' property length for PLIC");
+
+        PLIC = obtainAddress(prop_value,4*currentAddressCells);
+    }
 }
 
 // Procesar propiedades específicas de cada CPU
@@ -272,12 +383,10 @@ process_cpu_prop(const char *prop_name, void *prop_value, uint32 len, struct cpu
         else {
             panic("Invalid 'reg' property length for CPU");
         }
-    }
-    if (strcmp_custom(prop_name, "phandle") == 0 && len >= 4) {
+    } else if (strcmp_custom(prop_name, "phandle") == 0 && len >= 4) {
         uint32 phandle = swap_uint32(*(uint32 *)prop_value);
         cpu->phandle = phandle;
     }
-    // Se pueden agregar más propiedades si es necesario
 }
 
 // Función para comparar cadenas

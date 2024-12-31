@@ -23,15 +23,14 @@ extern struct cpu_info cpu_info_array[MAX_CPUS];
 // Contador de CPUs detectadas
 extern int cpu_count;
 
-// Variable para almacenar la dirección base del UART
-extern uint64 uart_base;
-
 // Declaración de la función principal de inicialización del Device Tree
 void dtb_init(void);
 
 // Declaración de funciones utilizadas en dtb.c
 void parse_fdt(void *dt_struct_ptr, uint32 struct_size);
-void process_prop(const char *prop_name, void *prop_value, uint32 len);
+void process_uart_prop(const char *prop_name, void *prop_value, uint32 len);
+void process_virtio_prop(const char *prop_name, void *prop_value, uint32 len);
+void process_plic_prop(const char *prop_name, void *prop_value, uint32 len);
 void process_cpu_prop(const char *prop_name, void *prop_value, uint32 len, struct cpu_info *cpu);
 
 // Declaración de funciones auxiliares de cadenas

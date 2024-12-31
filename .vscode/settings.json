@@ -13,7 +13,8 @@
     "proc.h": "c",
     "spinlock.h": "c",
     "file.h": "c",
-    "cstdio": "c"
+    "cstdio": "c",
+    "memlayout_assembly.h": "c"
   },
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",
