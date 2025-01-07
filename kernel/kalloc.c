@@ -9,25 +9,43 @@
 #include "riscv.h"
 #include "defs.h"
 
+#define MAXPAGES (PHYSTOP / PGSIZE)
+
+void _freerange(void *pa_vstart, void *pa_vend);
 void freerange(void *pa_start, void *pa_end);
+void _kfree(void *pa);
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
 
 struct run {
   struct run *next;
+  uint ref; // reference count
 };
 
 struct {
   struct spinlock lock;
   struct run *freelist;
+  // DEP: For COW fork, we can't store the run in the 
+  //      physical page, because we need space for the ref
+  //      count.  Move to the kmem struct.
+  struct run runs[MAXPAGES];
 } kmem;
 
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
-  freerange(end, (void*)PHYSTOP);
+  _freerange(end, (void*)PHYSTOP);
+}
+
+void
+_freerange(void *pa_start, void *pa_end)
+{
+  char *p;
+  p = (char*)PGROUNDUP((uint64)pa_start);
+  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+    _kfree(p);
 }
 
 void
@@ -39,7 +57,28 @@ freerange(void *pa_start, void *pa_end)
     kfree(p);
 }
 
-// Free the page of physical memory pointed at by pa,
+// Called by _freerange, which is only called by kinit.
+void
+_kfree(void *pa)
+{
+  struct run *r;
+
+  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
+    panic("_kfree");
+
+  // Fill with junk to catch dangling refs.
+  memset(pa, 1, PGSIZE);
+
+  r = &kmem.runs[(uint64)pa / PGSIZE];
+
+  acquire(&kmem.lock);
+  r->next = kmem.freelist;
+  kmem.freelist = r;
+  release(&kmem.lock);
+}
+
+
+// Free the page of physical memory pointed at by v,
 // which normally should have been returned by a
 // call to kalloc().  (The exception is when
 // initializing the allocator; see kinit above.)
@@ -54,8 +93,15 @@ kfree(void *pa)
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
-  r = (struct run*)pa;
-
+  r = &kmem.runs[(uint64)pa / PGSIZE];
+  if (r->ref != 1) {
+    // assert ref == 1
+    printf("kfree: assert ref == 1 failed\n");
+    //printf("0x%x %d\n", r, r->ref);
+    //exit(-1);
+    panic("Kfree: ref count not 1, you f(uck)ree'd up");
+  }
+  
   acquire(&kmem.lock);
   r->next = kmem.freelist;
   kmem.freelist = r;
@@ -72,11 +118,70 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r){
+    r->ref = 1;
     kmem.freelist = r->next;
+  }
   release(&kmem.lock);
 
-  if(r)
-    memset((char*)r, 5, PGSIZE); // fill with junk
-  return (void*)r;
+  if(r){
+    memset((char*)((r - kmem.runs) * PGSIZE), 5, PGSIZE); // fill with junk
+    return (void*)((r - kmem.runs) * PGSIZE);
+  }  
+  return (void*)0;
+}
+
+
+/**
+ * Increment the reference count of a page descriptor.
+ */
+void
+incref(void *pa)
+{
+  struct run *r;
+
+  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
+    panic("incref");
+
+  acquire(&kmem.lock);
+  r = &kmem.runs[(uint64)pa / PGSIZE];
+  r->ref++;
+  release(&kmem.lock);
+}
+
+/**
+ * Decrement the reference count of a page descriptor.
+ */
+void
+decref(void *pa)
+{
+  struct run *r;
+
+  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
+    panic("decref");
+
+  acquire(&kmem.lock);
+  r = &kmem.runs[(uint64)pa / PGSIZE];
+  r->ref--;
+  release(&kmem.lock);
+}
+
+/**
+ * Get reference count of a page descriptor.
+ */
+uint
+getref(void *pa)
+{
+  struct run *r = &kmem.runs[(uint64)pa / PGSIZE];
+  return r->ref;
+}
+
+/**
+ * Print reference count of a page descriptor.
+ */
+void
+printref(char *pa)
+{
+  struct run *r = &kmem.runs[(uint64)pa / PGSIZE];
+  printf("printref: address: 0x%p, ref: %d\n", r, r->ref);
 }
