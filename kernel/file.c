@@ -415,7 +415,11 @@ vmacopy(struct proc *p, struct proc * np){
       uint64 start_pg = PGROUNDDOWN((uint64)v->addrBegin);
       uint64 end_pg = PGROUNDDOWN((uint64)v->addrBegin + len);
       uint64 pa = 0;
-      int perm = PTE_U | (v->prot & PROT_READ ? PTE_R : 0) | (v->prot & PROT_WRITE ? PTE_W : 0);
+      // Copy On Write:
+      // Cambiamos el permiso de escritura a 0 siempre para forzar un fallo de página al intentar
+      // escribir en la PA del padre, de tal forma que PTE_R == 0 y PROT_WRITE == 1, caso en el
+      // que crearemos una nueva PA para el hijo.
+      int perm = PTE_U | (v->prot & PROT_READ ? PTE_R : 0);
 
       // Igual a lo que hace munmap en #3 
       for(uint64 i = start_pg; i <= end_pg; i+=PGSIZE){

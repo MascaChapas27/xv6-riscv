@@ -96,6 +96,17 @@ usertrap(void)
       panic("usertrap: Write on non writable memory");
     }
     
+    pte_t *pte = walk(p->pagetable, (uint64)faultAddr, 1);
+    uint64 pa = walkaddr(p->pagetable, (uint64)faultAddr);
+    printf("DEBUG: usertrap: PROT_WRITE: %d. PTE_W: %ld. PA: %p.\n",v->prot & PROT_WRITE, *pte & PTE_W, (void*)pa);
+    // COW: Ya existe la PA asociada a la VA, se puede escribir en el mapeo pero no en la VA.
+    if( pa != 0 && (v->prot & PROT_WRITE) && !(*pte & PTE_W)){
+      // Desmapear PA del padre y mapear nueva PA
+      printf("DEBUG: COW, desmapeando PA...\n");
+      decref((void*)pa);
+      uvmunmap(p->pagetable, (uint64)faultAddr, 1, 0);
+    }
+    
 
 
 
@@ -121,7 +132,7 @@ usertrap(void)
     // Ahora que se ha conseguido leer el contenido a una página física, tenemos que mapearla a una
     // página virtual en el proceso
     int perm = PTE_U | (p->vmas[vmaIndex].prot & PROT_READ ? PTE_R : 0) | (p->vmas[vmaIndex].prot & PROT_WRITE ? PTE_W : 0);
-    
+    printf("DEBUG: usertrap: NEW PTE_W: %ld \n", perm & PTE_W);
     if(mappages(p->pagetable,(uint64)faultAddr,PGSIZE,(uint64)physPage,perm) == 0){
       printf("DEBUG: usertrap: mappages success. PA: %p\n", (void *)physPage);
     } else {

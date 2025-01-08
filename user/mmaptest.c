@@ -96,8 +96,10 @@ custom_test(void){
   if ((fd = open(f, O_RDWR)) == -1)
     err("open");
 
-  // # Mapeo y desmapeo compartido por dos procesos lectura 2 pags.
-  printf("\n##\n## Mapeo y desmapeo compartido por dos procesos lectura 2 pags.\n##\n");
+
+
+  printf("\n##\n## Mapeo y desmapeo compartido por dos procesos, lectura de las 2 pags.\n##\n");
+
   p = mmap(0, PGSIZE*2, PROT_READ, MAP_SHARED, fd, 0);
 
   printf("Soy el padre\n");
@@ -112,15 +114,14 @@ custom_test(void){
   wait(&status);
   munmap(p, PGSIZE*2);
 
-  // # Mapeo y desmapeo compartido por dos procesos, P1 lee primera pag y P2 la segunda. 
+
+
   printf("\n##\n## Mapeo y desmapeo compartido por dos procesos, P1 lee primera pag y P2 la segunda. \n##\n\n");
 
   printf("Soy el padre\n");
   p = mmap(0, PGSIZE*2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-  printf("Primer char pag 1: %d \n", p[0]);
-  // Intentar escribir, debe fallar por la proteción.
+
   p[0] = 'b';
-  printf("Primer char pag 1: %d \n", p[0]);
 
   if((pid = fork()) == 0){
     printf("Soy el hijo\n");
@@ -130,6 +131,44 @@ custom_test(void){
 
   wait(&status);
   munmap(p, PGSIZE*2);
+
+  int c;
+  read(fd, &c, 1);
+  if(c != 'b'){
+    printf("Escritura en mapeo compartido no reflejada en fichero.\n");
+    exit(1);
+  } else
+    printf("Escritura en mapeo compartido reflejada en fichero.\n");
+
+  
+
+
+
+  printf("\n##\n## Prueba de Copy On Write \n##\n\n");
+
+  printf("Soy el padre\n");
+  p = mmap(0, PGSIZE*2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+
+  p[0] = 'B';
+
+  if((pid = fork()) == 0){
+    printf("Soy el hijo\n");
+    p[0] = 'C';
+    printf("El mapeo en el hijo: %d\n", p[0]);
+    exit(0);
+  }
+
+  wait(&status);
+
+  printf("El mapeo en el padre (tras el hijo): %d\n", p[0]);
+
+  read(fd, &c, 1);
+  printf("El fichero tras desmapear el hijo: %d\n",c);
+  wait(&status);
+  munmap(p, PGSIZE*2);
+
+  read(fd, &c, 1);
+  printf("El fichero tras desmapear el padre: %d\n",c);
 
   exit(0);
 }
