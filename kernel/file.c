@@ -328,23 +328,24 @@ munmap(void *addr, int length){
     return -1;
   } 
 
-  // #2 Escribir en disco si es mapeo compartido
-  if(v->flags & MAP_SHARED){
-    struct file *f = v->mappedFile;
-    begin_op();
-    ilock(f->ip);
-    writei(f->ip, 1, start_pg, v->offset+(start_pg-(uint64)(v->addrBegin)), v->length);
-    iunlock(f->ip);
-    end_op();
-  }
+  
 
-  // #3 Borrar mapeo con addr y length
+  // #2 Borrar mapeo con addr y length
   for(uint64 i = start_pg; i <= end_pg; i+=PGSIZE){
     // Lazy alloc puede dar lugar a la existencia de páginas no 
     // válidas si aún no han sido accedidas, debemos comprobar eso
     uint64 pa = 0;
     if((pa = walkaddr(p->pagetable, i)) != 0) {
       if(getref((void*)pa) == 1){
+        // #3 Escribir en disco si es mapeo compartido
+        if(v->flags & MAP_SHARED){
+          struct file *f = v->mappedFile;
+          begin_op();
+          ilock(f->ip);
+          writei(f->ip, 1, i, v->offset+(i-(uint64)(v->addrBegin)), PGSIZE);
+          iunlock(f->ip);
+          end_op();
+        }
         // El último param hace kfree. Solo usarlo si ref == 1
         uvmunmap(p->pagetable, i, 1, 1);
       }
@@ -415,15 +416,23 @@ vmacopy(struct proc *p, struct proc * np){
       uint64 start_pg = PGROUNDDOWN((uint64)v->addrBegin);
       uint64 end_pg = PGROUNDDOWN((uint64)v->addrBegin + len);
       uint64 pa = 0;
-      // Copy On Write:
-      // Cambiamos el permiso de escritura a 0 siempre para forzar un fallo de página al intentar
-      // escribir en la PA del padre, de tal forma que PTE_R == 0 y PROT_WRITE == 1, caso en el
-      // que crearemos una nueva PA para el hijo.
-      int perm = PTE_U | (v->prot & PROT_READ ? PTE_R : 0);
 
-      // Igual a lo que hace munmap en #3 
+      // Igual a lo que hace munmap en #2 
       for(uint64 i = start_pg; i <= end_pg; i+=PGSIZE){
         if((pa = walkaddr(p->pagetable, i)) != 0) {
+          // Los permisos del nuevo mapeo dependen del tipo de mapeo.
+          // Si es privado, no poner PTE_W y retirar PTE_W del mapeo original,
+          // forzando en ambos casos un COW.
+          // Si es compartido, PTE_W dependerá de si se permite escribir o no
+          int perm;
+          if(v->flags & MAP_PRIVATE){
+            perm = PTE_U | (v->prot & PROT_READ ? PTE_R : 0);
+            uvmunmap(p->pagetable, i, 1, 0);
+            mappages(p->pagetable, i, PGSIZE, pa, perm);
+          }
+          else{
+            perm = PTE_U | (v->prot & PROT_READ ? PTE_R : 0 | (v->prot & PROT_WRITE ? PTE_W : 0));
+          }
           // Incrementar referencia a la PA
           incref((void*)pa);
           mappages(np->pagetable, i, PGSIZE, pa, perm);

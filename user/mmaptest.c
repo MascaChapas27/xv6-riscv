@@ -86,12 +86,11 @@ custom_test(void){
   int pid;
   int status;
   char *p;
-  //char *q;
+  int c;
   const char * const f = "mmap.dur";
   printf("custom_test starting\n");
   testname = "custom_test";
 
-  // Creamos fichero
   makefile(f);
   if ((fd = open(f, O_RDWR)) == -1)
     err("open");
@@ -116,64 +115,39 @@ custom_test(void){
 
 
 
-  printf("\n##\n## Mapeo y desmapeo compartido por dos procesos, P1 lee primera pag y P2 la segunda. \n##\n\n");
+  printf("\n##\n## Mapeo y desmapeo compartido por dos procesos, P1 y P2 leen la primera pag. \n##\n\n");
 
   printf("Soy el padre\n");
-  p = mmap(0, PGSIZE*2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  p = mmap(0, PGSIZE*2, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+  _v1(p);
 
-  char val = ' ';
-  p[0] = val;
+  p[0] = 'c';
 
   if((pid = fork()) == 0){
     printf("Soy el hijo\n");
-    p[0] = 'd';
-    printf("Primer char pag 2: %d \n", p[PGSIZE]);
-    exit(0);
+    //printf("Primer char pag 1 en el hijo: %d \n", p[0])
+    //for(;;);
+  } else {
+    p[0] = 'x';
   }
-
-  wait(&status);
-
-  int c;
-  read(fd, &c, 1);  
-  printf("Escritura en mapeo compartido reflejada en fichero: %d.\n", c);
   
+  wait(&status);
+  printf("El padre tiene en la segunda posición %d\n", p[1]);
+  if(pid == 0){
+    p[1] = 'y';
+    printf("El hijo tiene en la primera posición %d\n", p[0]);
+  }
+  //wait(&status);
+  
+  read(fd, &c, 1);  
+  printf("Escritura en mapeo compartido reflejada en fichero tras desmapeo hijo: %d.\n", c);
+  
+
   munmap(p, PGSIZE*2);
 
   read(fd, &c, 1);
-  if(c != val){
-    printf("Escritura en mapeo compartido no reflejada en fichero %d.\n", c);
-    exit(1);
-  } else
-    printf("Escritura en mapeo compartido reflejada en fichero: %d.\n", c);
-
-
-
-  printf("\n##\n## Prueba de Copy On Write \n##\n\n");
-
-  printf("Soy el padre\n");
-  p = mmap(0, PGSIZE*2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-
-  p[0] = 'b';
-
-  if((pid = fork()) == 0){
-    printf("Soy el hijo\n");
-    p[0] = 'C';
-    printf("El mapeo en el hijo: %d\n", p[0]);
-    exit(0);
-  }
-
-  wait(&status);
-
-  printf("El mapeo en el padre (tras el hijo): %d\n", p[0]);
-  int d;
-  read(fd, &d, 1);
-  printf("El fichero tras desmapear el hijo: %d\n",d);
-  wait(&status);
-  munmap(p, PGSIZE*2);
-
-  read(fd, &d, 1);
-  printf("El fichero tras desmapear el padre: %d\n",d);
-
+  printf("Escritura en mapeo compartido reflejada en fichero tras desmapeo padre: %d.\n", c);
+  
   exit(0);
 }
 

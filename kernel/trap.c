@@ -96,15 +96,44 @@ usertrap(void)
       panic("usertrap: Write on non writable memory");
     }
     
+
     pte_t *pte = walk(p->pagetable, (uint64)faultAddr, 1);
     uint64 pa = walkaddr(p->pagetable, (uint64)faultAddr);
+    int perm = PTE_U | (p->vmas[vmaIndex].prot & PROT_READ ? PTE_R : 0) | (p->vmas[vmaIndex].prot & PROT_WRITE ? PTE_W : 0);
     printf("DEBUG: usertrap: PROT_WRITE: %d. PTE_W: %ld. PA: %p.\n",v->prot & PROT_WRITE, *pte & PTE_W, (void*)pa);
-    // COW: Ya existe la PA asociada a la VA, se puede escribir en el mapeo pero no en la VA.
-    if( pa != 0 && (v->prot & PROT_WRITE) && !(*pte & PTE_W)){
-      // Desmapear PA del padre y mapear nueva PA
-      printf("DEBUG: COW, desmapeando PA...\n");
-      decref((void*)pa);
+
+   
+    // Caso COW: Existe PA asociada a la VA, se puede escribir 
+    // en el mapeo pero no en la VA asociada a la PTE del proceso.
+    if(pa != 0 && (v->prot & PROT_WRITE) && !(*pte & PTE_W)){
+      // Caso especial asociado a desmapeo por COW.
+      // Se queda la PA antigua con una sola referencia, activar PTE_W.
+      if(getref((void*)pa) == 1){
+        printf("DEBUG: usertrap: COW, special case, activating PTE_W.\n");
+        uvmunmap(p->pagetable, (uint64)faultAddr, 1, 0);
+        mappages(p->pagetable, (uint64)faultAddr, PGSIZE, pa, perm);
+        usertrapret(); // Salimos de usertrap
+      }
+
+      // Caso general.
+      // Nueva PA para el proceso actual. -> activar PTE_W.
+      // Decrementar referencia a la antigua PA.
+      // Si tras esto la antigua PA solo tiene una referencia 
+      // activar PTE_W (cuando intente escribir el otro proceso
+      // que aún la usa, es el caso especial de arriba).
+      printf("DEBUG: usertrap: COW, removing mapping with new PA.\n");
       uvmunmap(p->pagetable, (uint64)faultAddr, 1, 0);
+      decref((void*)pa);
+      printf("DEBUG: usertrap: Lazy alloc miss of pid %d at dir %p, mapping...\n", p->pid, faultAddr);
+      char *newPa = (char*)kalloc();
+
+      if(newPa == 0)
+        panic("usertrap: kallocn't");
+
+      memmove((void*)newPa, (void*)pa, PGSIZE);
+      mappages(p->pagetable, (uint64)faultAddr, PGSIZE, (uint64)newPa, perm);
+      printf("DEBUG: usertrap: mappages success. PA: %p\n", (void *)newPa);
+      usertrapret(); // Salimos de usertrap
     }
     
 
@@ -119,7 +148,7 @@ usertrap(void)
 
     // Llenamos la página de ceros por si acaso
     memset(physPage,0,PGSIZE);
-
+        
     // Ahora, la llenamos con los siguientes 4096 (como máximo) bytes de datos del fichero. Tenemos
     // que obtener el cerrojo del fichero primero
     struct inode* inodeptr = p->vmas[vmaIndex].mappedFile->ip;
@@ -128,10 +157,9 @@ usertrap(void)
     ilock(inodeptr);
     readi(inodeptr,0,(uint64)physPage,fileOffset,PGSIZE);
     iunlock(inodeptr);
-
+    
     // Ahora que se ha conseguido leer el contenido a una página física, tenemos que mapearla a una
     // página virtual en el proceso
-    int perm = PTE_U | (p->vmas[vmaIndex].prot & PROT_READ ? PTE_R : 0) | (p->vmas[vmaIndex].prot & PROT_WRITE ? PTE_W : 0);
     printf("DEBUG: usertrap: NEW PTE_W: %ld \n", perm & PTE_W);
     if(mappages(p->pagetable,(uint64)faultAddr,PGSIZE,(uint64)physPage,perm) == 0){
       printf("DEBUG: usertrap: mappages success. PA: %p\n", (void *)physPage);
@@ -143,7 +171,7 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
-    printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
+    printf("usertrap(): unexpected scause 0x%ld pid=%d VA: %p\n", r_scause(), p->pid, (void*)(r_stval() & ~(PGSIZE-1)));
     printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
     setkilled(p);
   }
