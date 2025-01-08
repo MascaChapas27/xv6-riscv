@@ -9,6 +9,7 @@
 
 void mmap_test();
 void fork_test();
+void custom_test();
 char buf[BSIZE];
 
 #define MAP_FAILED ((char *) -1)
@@ -16,6 +17,7 @@ char buf[BSIZE];
 int
 main(int argc, char *argv[])
 {
+  custom_test();
   mmap_test();
   fork_test();
   printf("mmaptest: all tests succeeded\n");
@@ -79,6 +81,35 @@ makefile(const char *f)
 }
 
 void
+custom_test(void){
+  int fd;
+  int pid;
+  const char * const f = "mmap.dur";
+  printf("custom_test starting\n");
+  testname = "custom_test";
+
+  // Creamos fichero
+  makefile(f);
+  if ((fd = open(f, O_RDONLY)) == -1)
+    err("open");
+
+  // Creamos mapeo
+  char *p = mmap(0, PGSIZE*2, PROT_READ, MAP_PRIVATE, fd, 0);
+
+  printf("Soy el padre\n");
+  _v1(p);
+
+  if((pid = fork()) == 0){
+    printf("Soy el hijo\n");
+    _v1(p);
+    exit(0);
+  }
+  int status;
+  wait(&status);
+  exit(0);
+}
+
+void
 mmap_test(void)
 {
   int fd;
@@ -86,7 +117,6 @@ mmap_test(void)
   const char * const f = "mmap.dur";
   printf("mmap_test starting\n");
   testname = "mmap_test";
-
 
   //
   // create a file with known content, map it into memory, check that

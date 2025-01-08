@@ -330,7 +330,6 @@ munmap(void *addr, int length){
 
   // #2 Escribir en disco si es mapeo compartido
   if(v->flags & MAP_SHARED){
-
     struct file *f = v->mappedFile;
     begin_op();
     ilock(f->ip);
@@ -344,8 +343,8 @@ munmap(void *addr, int length){
     // Lazy alloc puede dar lugar a la existencia de páginas no 
     // válidas si aún no han sido accedidas, debemos comprobar eso
     if(walkaddr(p->pagetable, i) != 0) {
-        uvmunmap(p->pagetable, i, 1, 0);
-        printf("DEBUG: munmap: Valid PTE fre'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
+      uvmunmap(p->pagetable, i, 1, 1); // El último parámetro hace kfree al terminar de desmapear, para un funcionamiento más correcto de las páginas físicas compartidas.
+      printf("DEBUG: munmap: Valid PTE fre'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
     } else {
       printf("DEBUG: munmap: Lazy PTE fre'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
     }
@@ -384,7 +383,7 @@ vmacopy(struct proc *p, struct proc * np){
 
   for(int i=0; i < MAX_VMAS; i++){
     // Found used vma entry in p, dup in np
-    // Increment file reference, as another proc points to the file
+    // Increment file reference, since another proc points to the file now
     if(p->vmas[i].used == 1){
       struct VMA *v = &p->vmas[i];
       struct VMA *nv = &np->vmas[i];
@@ -395,6 +394,30 @@ vmacopy(struct proc *p, struct proc * np){
       nv->offset = v->offset;
       nv->prot = v->prot;
       nv->used = v->used;
+
+      // Mapear dirección de la PA del padre. Incrementar referencia de las páginas físicas empleadas
+      // De hecho hay que mapear también la PA en la PT porque uvmcopy solo mapea por abajo hasta sz,
+      // por lo que nunca llega a mapear las páginas. Igual a la larga esto es un problema si el heap
+      // se hiciera grande.
+      
+      // Por cada VMA, recorrer todas sus páginas y mapearlas en el nuevo proceso.
+      uint64 start_pg = PGROUNDDOWN((uint64)v->addrBegin);
+      uint64 end_pg = PGROUNDDOWN((uint64)v->addrBegin+v->length);
+      uint64 pa = 0;
+      int perm = PTE_U | (v->prot & PROT_READ ? PTE_R : 0) | (v->prot & PROT_WRITE ? PTE_W : 0);
+
+      // Igual a lo que hace munmap en #3 
+      for(uint64 i = start_pg; i <= end_pg; i+=PGSIZE){
+        if((pa = walkaddr(p->pagetable, i)) != 0) {
+          // Incrementar referencia a la PA
+          incref((void*)pa);
+          mappages(np->pagetable, i, PGSIZE, pa, perm);
+          uvmunmap(p->pagetable, i, 1, 1); // Hace kfree al terminar de desmapear, para un funcionamiento más correcto de las páginas físicas compartidas.
+          printf("DEBUG: vmacopy: Valid PTE mapped from p to np, dir: %p \n", (void*)i);
+        } else {
+          printf("DEBUG: vmacopy: Lazy PTE mapped from p to np (nothing done), dir %p \n", (void*)i);
+        }
+      }
     }
   }
 

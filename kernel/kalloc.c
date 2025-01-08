@@ -96,10 +96,11 @@ kfree(void *pa)
   r = &kmem.runs[(uint64)pa / PGSIZE];
   if (r->ref != 1) {
     // assert ref == 1
-    printf("kfree: assert ref == 1 failed\n");
+    //printf("kfree: assert ref == 1 failed\n");
     //printf("0x%x %d\n", r, r->ref);
     //exit(-1);
-    panic("Kfree: ref count not 1, you f(uck)ree'd up");
+    printf("PA %p with %d refs\n", pa, r->ref);
+    panic("Kfree: ref count not 1, you free'd up." );
   }
   
   acquire(&kmem.lock);
@@ -147,6 +148,8 @@ incref(void *pa)
   r = &kmem.runs[(uint64)pa / PGSIZE];
   r->ref++;
   release(&kmem.lock);
+
+  printf("DEBUG: incref: reference added to PA %p\n", pa);
 }
 
 /**
@@ -164,6 +167,8 @@ decref(void *pa)
   r = &kmem.runs[(uint64)pa / PGSIZE];
   r->ref--;
   release(&kmem.lock);
+
+  printf("DEBUG: decref: reference withdraw to PA %p\n", pa);
 }
 
 /**

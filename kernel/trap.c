@@ -113,7 +113,7 @@ usertrap(void)
       int perm = PTE_U | (p->vmas[vmaIndex].prot & PROT_READ ? PTE_R : 0) | (p->vmas[vmaIndex].prot & PROT_WRITE ? PTE_W : 0);
       
       if(mappages(p->pagetable,(uint64)faultAddr,PGSIZE,(uint64)physPage,perm) == 0){
-        printf("DEBUG: usertrap: mappages success.\n");
+        printf("DEBUG: usertrap: mappages success. PA: %p\n", (void *)physPage);
       } else {
         printf("DEBUG: usertrap: mappages error.\n");
       }
