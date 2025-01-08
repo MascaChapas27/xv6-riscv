@@ -121,26 +121,30 @@ custom_test(void){
   printf("Soy el padre\n");
   p = mmap(0, PGSIZE*2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
-  p[0] = 'b';
+  char val = ' ';
+  p[0] = val;
 
   if((pid = fork()) == 0){
     printf("Soy el hijo\n");
+    p[0] = 'd';
     printf("Primer char pag 2: %d \n", p[PGSIZE]);
     exit(0);
   }
 
   wait(&status);
-  munmap(p, PGSIZE*2);
 
   int c;
+  read(fd, &c, 1);  
+  printf("Escritura en mapeo compartido reflejada en fichero: %d.\n", c);
+  
+  munmap(p, PGSIZE*2);
+
   read(fd, &c, 1);
-  if(c != 'b'){
-    printf("Escritura en mapeo compartido no reflejada en fichero.\n");
+  if(c != val){
+    printf("Escritura en mapeo compartido no reflejada en fichero %d.\n", c);
     exit(1);
   } else
-    printf("Escritura en mapeo compartido reflejada en fichero.\n");
-
-  
+    printf("Escritura en mapeo compartido reflejada en fichero: %d.\n", c);
 
 
 
@@ -149,7 +153,7 @@ custom_test(void){
   printf("Soy el padre\n");
   p = mmap(0, PGSIZE*2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
-  p[0] = 'B';
+  p[0] = 'b';
 
   if((pid = fork()) == 0){
     printf("Soy el hijo\n");
@@ -161,14 +165,14 @@ custom_test(void){
   wait(&status);
 
   printf("El mapeo en el padre (tras el hijo): %d\n", p[0]);
-
-  read(fd, &c, 1);
-  printf("El fichero tras desmapear el hijo: %d\n",c);
+  int d;
+  read(fd, &d, 1);
+  printf("El fichero tras desmapear el hijo: %d\n",d);
   wait(&status);
   munmap(p, PGSIZE*2);
 
-  read(fd, &c, 1);
-  printf("El fichero tras desmapear el padre: %d\n",c);
+  read(fd, &d, 1);
+  printf("El fichero tras desmapear el padre: %d\n",d);
 
   exit(0);
 }
