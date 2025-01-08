@@ -14,7 +14,8 @@
     "spinlock.h": "c",
     "file.h": "c",
     "cstdio": "c",
-    "memlayout_assembly.h": "c"
+    "memlayout_assembly.h": "c",
+    "new": "c"
   },
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",

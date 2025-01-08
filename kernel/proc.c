@@ -385,7 +385,6 @@ exit(int status)
   // Free all mapped VMAs
   for(int i=0;i<MAX_VMAS;i++){
     if(p->vmas[i].used){
-      printf("DEBUG\n");
       munmap(p->vmas[i].addrBegin,p->vmas[i].length);
     }
   }

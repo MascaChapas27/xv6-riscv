@@ -99,6 +99,7 @@ struct VMA {
 // Protection bits for a VMA
 #define PROT_READ   1
 #define PROT_WRITE  (1 << 1)
+#define PROT_NONE   (1 << 2)
 
 // Sharing flags for a VMA
 #define MAP_PRIVATE 1

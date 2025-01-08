@@ -84,17 +84,21 @@ void
 custom_test(void){
   int fd;
   int pid;
+  int status;
+  char *p;
+  //char *q;
   const char * const f = "mmap.dur";
   printf("custom_test starting\n");
   testname = "custom_test";
 
   // Creamos fichero
   makefile(f);
-  if ((fd = open(f, O_RDONLY)) == -1)
+  if ((fd = open(f, O_RDWR)) == -1)
     err("open");
 
-  // Creamos mapeo
-  char *p = mmap(0, PGSIZE*2, PROT_READ, MAP_PRIVATE, fd, 0);
+  // # Mapeo y desmapeo compartido por dos procesos lectura 2 pags.
+  printf("\n##\n## Mapeo y desmapeo compartido por dos procesos lectura 2 pags.\n##\n");
+  p = mmap(0, PGSIZE*2, PROT_READ, MAP_SHARED, fd, 0);
 
   printf("Soy el padre\n");
   _v1(p);
@@ -104,8 +108,29 @@ custom_test(void){
     _v1(p);
     exit(0);
   }
-  int status;
+  
   wait(&status);
+  munmap(p, PGSIZE*2);
+
+  // # Mapeo y desmapeo compartido por dos procesos, P1 lee primera pag y P2 la segunda. 
+  printf("\n##\n## Mapeo y desmapeo compartido por dos procesos, P1 lee primera pag y P2 la segunda. \n##\n\n");
+
+  printf("Soy el padre\n");
+  p = mmap(0, PGSIZE*2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  printf("Primer char pag 1: %d \n", p[0]);
+  // Intentar escribir, debe fallar por la proteción.
+  p[0] = 'b';
+  printf("Primer char pag 1: %d \n", p[0]);
+
+  if((pid = fork()) == 0){
+    printf("Soy el hijo\n");
+    printf("Primer char pag 2: %d \n", p[PGSIZE]);
+    exit(0);
+  }
+
+  wait(&status);
+  munmap(p, PGSIZE*2);
+
   exit(0);
 }
 
