@@ -149,7 +149,7 @@ incref(void *pa)
   r->ref++;
   release(&kmem.lock);
 
-  printf("DEBUG: incref: PA %p\n", pa);
+  if(DEBUG) printf("DEBUG: incref: PA %p\n", pa);
 }
 
 /**
@@ -168,7 +168,7 @@ decref(void *pa)
   r->ref--;
   release(&kmem.lock);
 
-  printf("DEBUG: decref: PA %p\n", pa);
+  if(DEBUG) printf("DEBUG: decref: PA %p\n", pa);
 }
 
 /**

@@ -100,7 +100,7 @@ usertrap(void)
     pte_t *pte = walk(p->pagetable, (uint64)faultAddr, 1);
     uint64 pa = walkaddr(p->pagetable, (uint64)faultAddr);
     int perm = PTE_U | (p->vmas[vmaIndex].prot & PROT_READ ? PTE_R : 0) | (p->vmas[vmaIndex].prot & PROT_WRITE ? PTE_W : 0);
-    printf("DEBUG: usertrap: PROT_WRITE: %d. PTE_W: %ld. PA: %p.\n",v->prot & PROT_WRITE, *pte & PTE_W, (void*)pa);
+    //printf("DEBUG: usertrap: PROT_WRITE: %d. PTE_W: %ld. PA: %p.\n",v->prot & PROT_WRITE, *pte & PTE_W, (void*)pa);
 
    
     // Caso COW: Existe PA asociada a la VA, se puede escribir 
@@ -109,7 +109,7 @@ usertrap(void)
       // Caso especial asociado a desmapeo por COW.
       // Se queda la PA antigua con una sola referencia, activar PTE_W.
       if(getref((void*)pa) == 1){
-        printf("DEBUG: usertrap: COW, special case, activating PTE_W.\n");
+        if(DEBUG) printf("DEBUG: usertrap: COW, special case, activating PTE_W.\n");
         uvmunmap(p->pagetable, (uint64)faultAddr, 1, 0);
         mappages(p->pagetable, (uint64)faultAddr, PGSIZE, pa, perm);
         usertrapret(); // Salimos de usertrap
@@ -121,10 +121,10 @@ usertrap(void)
       // Si tras esto la antigua PA solo tiene una referencia 
       // activar PTE_W (cuando intente escribir el otro proceso
       // que aún la usa, es el caso especial de arriba).
-      printf("DEBUG: usertrap: COW, removing mapping with new PA.\n");
+      if(DEBUG) printf("DEBUG: usertrap: COW, removing mapping with new PA.\n");
       uvmunmap(p->pagetable, (uint64)faultAddr, 1, 0);
       decref((void*)pa);
-      printf("DEBUG: usertrap: Lazy alloc miss of pid %d at dir %p, mapping...\n", p->pid, faultAddr);
+      if(DEBUG) printf("DEBUG: usertrap: Lazy alloc miss of pid %d at dir %p, mapping...\n", p->pid, faultAddr);
       char *newPa = (char*)kalloc();
 
       if(newPa == 0)
@@ -132,14 +132,11 @@ usertrap(void)
 
       memmove((void*)newPa, (void*)pa, PGSIZE);
       mappages(p->pagetable, (uint64)faultAddr, PGSIZE, (uint64)newPa, perm);
-      printf("DEBUG: usertrap: mappages success. PA: %p\n", (void *)newPa);
+      if(DEBUG) printf("DEBUG: usertrap: mappages success. PA: %p\n", (void *)newPa);
       usertrapret(); // Salimos de usertrap
     }
     
-
-
-
-    printf("DEBUG: usertrap: Lazy alloc miss of pid %d at dir %p, mapping...\n", p->pid, faultAddr);
+    if(DEBUG) printf("DEBUG: usertrap: Lazy alloc miss of pid %d at dir %p, mapping...\n", p->pid, faultAddr);
     // Si la dirección pertenece a una VMA, primero sacamos una página física
     char *physPage = (char*)kalloc();
 
@@ -160,11 +157,10 @@ usertrap(void)
     
     // Ahora que se ha conseguido leer el contenido a una página física, tenemos que mapearla a una
     // página virtual en el proceso
-    printf("DEBUG: usertrap: NEW PTE_W: %ld \n", perm & PTE_W);
     if(mappages(p->pagetable,(uint64)faultAddr,PGSIZE,(uint64)physPage,perm) == 0){
-      printf("DEBUG: usertrap: mappages success. PA: %p\n", (void *)physPage);
+      if(DEBUG) printf("DEBUG: usertrap: mappages success. PA: %p\n", (void *)physPage);
     } else {
-      printf("DEBUG: usertrap: mappages error.\n");
+      if(DEBUG) printf("DEBUG: usertrap: mappages error.\n");
     }
   
 

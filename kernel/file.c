@@ -279,7 +279,7 @@ mmap(void *addr, int length, int prot, int flags, struct file* f, int offset){
   // abajo. Colocaremos la siguiente justo debajo. Esto se puede hacer así porque hemos comprobado
   // al principio que length es múltiplo del tamaño de página y distinto de cero
   chosenVMA->addrBegin = addrLowestVMA-length;
-  printf("DEBUG: mmap: Lazy mmap of pid %d at idx %d, addrBegin: %p, len: %d, pages: %d\n",p->pid, vmaIndex, chosenVMA->addrBegin, chosenVMA->length, chosenVMA->length/PGSIZE);
+  if(DEBUG) printf("DEBUG: mmap: Lazy mmap of pid %d at idx %d, addrBegin: %p, len: %d, pages: %d\n",p->pid, vmaIndex, chosenVMA->addrBegin, chosenVMA->length, chosenVMA->length/PGSIZE);
 
   // Es importante aumentar el número de referencias del fichero para que no sea liberado cuando
   // se cierre pero aún permanezca la VMA mapeada
@@ -343,20 +343,23 @@ munmap(void *addr, int length){
           begin_op();
           ilock(f->ip);
           writei(f->ip, 1, i, v->offset+(i-(uint64)(v->addrBegin)), PGSIZE);
+          //writei(f->ip, 1, i, 0, PGSIZE);
+          //filewrite(f, i, PGSIZE); No se puede usar, altera el offset.
           iunlock(f->ip);
           end_op();
         }
         // El último param hace kfree. Solo usarlo si ref == 1
         uvmunmap(p->pagetable, i, 1, 1);
+        if(DEBUG) printf("DEBUG: munmap: Valid PTE free'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
       }
       else{
         // Desmapear la página del proceso, si no, quedan hojas y da panic en freewalk.
         decref((void*)pa);
         uvmunmap(p->pagetable, i, 1, 0);
+        if(DEBUG) printf("DEBUG: munmap: Valid PTE with multiple references free'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
       }
-      printf("DEBUG: munmap: Valid PTE fre'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
     } else {
-      printf("DEBUG: munmap: Lazy PTE fre'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
+      if(DEBUG) printf("DEBUG: munmap: Lazy PTE free'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
     }
     // Si borramos la primera página de la vma, hay que poner la siguiente como dir de inicio
     // En caso de borrar todo, no pasa nada por que apunte a una dir incorrecta, ya que se borrará
@@ -431,14 +434,14 @@ vmacopy(struct proc *p, struct proc * np){
             mappages(p->pagetable, i, PGSIZE, pa, perm);
           }
           else{
-            perm = PTE_U | (v->prot & PROT_READ ? PTE_R : 0 | (v->prot & PROT_WRITE ? PTE_W : 0));
+            perm = PTE_U | (v->prot & PROT_READ ? PTE_R : 0) | (v->prot & PROT_WRITE ? PTE_W : 0);
           }
           // Incrementar referencia a la PA
           incref((void*)pa);
           mappages(np->pagetable, i, PGSIZE, pa, perm);
-          printf("DEBUG: vmacopy: Valid PTE mapped from p to np, dir: %p \n", (void*)i);
+          if(DEBUG) printf("DEBUG: vmacopy: Valid PTE mapped from p to np, dir: %p \n", (void*)i);
         } else {
-          printf("DEBUG: vmacopy: Lazy PTE mapped from p to np (nothing done), dir %p \n", (void*)i);
+          if(DEBUG) printf("DEBUG: vmacopy: Lazy PTE mapped from p to np (nothing done), dir %p \n", (void*)i);
         }
       }
     }

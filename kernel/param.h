@@ -1,6 +1,7 @@
 #ifndef __PARAM_H__
 #define __PARAM_H__
 
+#define DEBUG         0  // enable debug messages    
 #define NPROC        64  // maximum number of processes
 #define NCPU          8  // maximum number of CPUs
 #define NOFILE       16  // open files per process

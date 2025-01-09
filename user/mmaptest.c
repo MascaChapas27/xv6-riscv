@@ -42,7 +42,7 @@ _v1(char *p)
   int i;
   for (i = 0; i < PGSIZE*2; i++) {
     if (i < PGSIZE + (PGSIZE/2)) {
-      if(i%PGSIZE == 0) printf("DEBUG: mmaptest _v1: Checking pag %d\n", i/PGSIZE);
+      if(i%PGSIZE == 0 && DEBUG) printf("DEBUG: mmaptest _v1: Checking pag %d\n", i/PGSIZE);
       if (p[i] != 'A') {
         printf("mismatch at %d, wanted 'A', got 0x%x\n", i, p[i]);
         err("v1 mismatch (1)");
@@ -118,36 +118,34 @@ custom_test(void){
   printf("\n##\n## Mapeo y desmapeo compartido por dos procesos, P1 y P2 leen la primera pag. \n##\n\n");
 
   printf("Soy el padre\n");
-  p = mmap(0, PGSIZE*2, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+  p = mmap(0, PGSIZE*2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  
+  read(fd, &c, 1);  
+  printf("Valor en disco: %d.\n", c);
   _v1(p);
 
   p[0] = 'c';
 
   if((pid = fork()) == 0){
     printf("Soy el hijo\n");
-    //printf("Primer char pag 1 en el hijo: %d \n", p[0])
-    //for(;;);
-  } else {
-    p[0] = 'x';
+    printf("Valor en MMAP hijo: %d\n", p[0]);
+    p[0] = 'f';
+    read(fd, &c, 1);  
+    printf("Valor en disco: %d.\n", c);
+    exit(0);
   }
   
   wait(&status);
-  printf("El padre tiene en la segunda posición %d\n", p[1]);
-  if(pid == 0){
-    p[1] = 'y';
-    printf("El hijo tiene en la primera posición %d\n", p[0]);
-  }
-  //wait(&status);
+  printf("Valor en MMAP padre %d\n", p[0]);
   
   read(fd, &c, 1);  
-  printf("Escritura en mapeo compartido reflejada en fichero tras desmapeo hijo: %d.\n", c);
+  printf("Valor en disco: %d.\n", c);
   
-
   munmap(p, PGSIZE*2);
 
-  read(fd, &c, 1);
-  printf("Escritura en mapeo compartido reflejada en fichero tras desmapeo padre: %d.\n", c);
-  
+  read(fd, &c, 1);  
+  printf("Valor en disco: %d.\n", c);
+
   exit(0);
 }
 
