@@ -120,8 +120,6 @@ custom_test(void){
   printf("Soy el padre\n");
   p = mmap(0, PGSIZE*2, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   
-  read(fd, &c, 1);  
-  printf("Valor en disco: %d.\n", c);
   _v1(p);
 
   p[0] = 'c';
@@ -130,23 +128,13 @@ custom_test(void){
     printf("Soy el hijo\n");
     printf("Valor en MMAP hijo: %d\n", p[0]);
     p[0] = 'f';
-    read(fd, &c, 1);  
-    printf("Valor en disco: %d.\n", c);
     exit(0);
   }
-  
-  wait(&status);
-  printf("Valor en MMAP padre %d\n", p[0]);
-  
-  read(fd, &c, 1);  
-  printf("Valor en disco: %d.\n", c);
-  
+
   munmap(p, PGSIZE*2);
 
   read(fd, &c, 1);  
   printf("Valor en disco: %d.\n", c);
-
-  exit(0);
 }
 
 void

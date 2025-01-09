@@ -342,9 +342,9 @@ munmap(void *addr, int length){
           struct file *f = v->mappedFile;
           begin_op();
           ilock(f->ip);
+          // No se puede usar filewrite, altera el offset y 
+          // deja de ser transparente para el usuario.
           writei(f->ip, 1, i, v->offset+(i-(uint64)(v->addrBegin)), PGSIZE);
-          //writei(f->ip, 1, i, 0, PGSIZE);
-          //filewrite(f, i, PGSIZE); No se puede usar, altera el offset.
           iunlock(f->ip);
           end_op();
         }
