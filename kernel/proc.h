@@ -138,7 +138,7 @@ struct proc {
   uint64 clockticks;
 
   // VMAs of this proccess
-  struct VMA vmas[MAX_VMAS]; 
+  struct VMA vmas[MAX_VMAS];
 };
 
 #endif

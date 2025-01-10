@@ -112,27 +112,26 @@ usertrap(void)
         if(DEBUG) printf("DEBUG: usertrap: COW, special case, activating PTE_W.\n");
         uvmunmap(p->pagetable, (uint64)faultAddr, 1, 0);
         mappages(p->pagetable, (uint64)faultAddr, PGSIZE, pa, perm);
-        usertrapret(); // Salimos de usertrap
+      } else {
+        // Caso general.
+        // Nueva PA para el proceso actual. -> activar PTE_W.
+        // Decrementar referencia a la antigua PA.
+        // Si tras esto la antigua PA solo tiene una referencia 
+        // activar PTE_W (cuando intente escribir el otro proceso
+        // que aún la usa, es el caso especial de arriba).
+        if(DEBUG) printf("DEBUG: usertrap: COW, removing mapping with new PA.\n");
+        uvmunmap(p->pagetable, (uint64)faultAddr, 1, 0);
+        decref((void*)pa);
+        if(DEBUG) printf("DEBUG: usertrap: Lazy alloc miss of pid %d at dir %p, mapping...\n", p->pid, faultAddr);
+        char *newPa = (char*)kalloc();
+
+        if(newPa == 0)
+          panic("usertrap: kallocn't");
+
+        memmove((void*)newPa, (void*)pa, PGSIZE);
+        mappages(p->pagetable, (uint64)faultAddr, PGSIZE, (uint64)newPa, perm);
+        if(DEBUG) printf("DEBUG: usertrap: mappages success. PA: %p\n", (void *)newPa);
       }
-
-      // Caso general.
-      // Nueva PA para el proceso actual. -> activar PTE_W.
-      // Decrementar referencia a la antigua PA.
-      // Si tras esto la antigua PA solo tiene una referencia 
-      // activar PTE_W (cuando intente escribir el otro proceso
-      // que aún la usa, es el caso especial de arriba).
-      if(DEBUG) printf("DEBUG: usertrap: COW, removing mapping with new PA.\n");
-      uvmunmap(p->pagetable, (uint64)faultAddr, 1, 0);
-      decref((void*)pa);
-      if(DEBUG) printf("DEBUG: usertrap: Lazy alloc miss of pid %d at dir %p, mapping...\n", p->pid, faultAddr);
-      char *newPa = (char*)kalloc();
-
-      if(newPa == 0)
-        panic("usertrap: kallocn't");
-
-      memmove((void*)newPa, (void*)pa, PGSIZE);
-      mappages(p->pagetable, (uint64)faultAddr, PGSIZE, (uint64)newPa, perm);
-      if(DEBUG) printf("DEBUG: usertrap: mappages success. PA: %p\n", (void *)newPa);
       usertrapret(); // Salimos de usertrap
     }
     

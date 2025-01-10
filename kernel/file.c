@@ -264,15 +264,13 @@ mmap(void *addr, int length, int prot, int flags, struct file* f, int offset){
 
   // Se comprueba la dirección de memoria de la VMA más reciente; aquella con VA más baja.
   // Empieza buscando por la VA más alta, quitando la página trampolín y el trapframe.
-  // Nos estaríamos colocando justo en el comienzo del trapframe.
+  // Nos estaríamos colocando justo debajo del trapframe.
   void* addrLowestVMA = (void*)(MAXVA - 2*PGSIZE);
 
   for(int i=0;i<MAX_VMAS;i++){
     if(i == vmaIndex) continue;
-
-    if(p->vmas[i].used && p->vmas[i].addrBegin < addrLowestVMA){
+    if(p->vmas[i].used && p->vmas[i].addrBegin < addrLowestVMA)
       addrLowestVMA = p->vmas[i].addrBegin;
-    }
   }
 
   // En addrLowestVMA tenemos la dirección alineada al tamaño de página donde está la VMA de más
@@ -331,19 +329,19 @@ munmap(void *addr, int length){
   
 
   // #2 Borrar mapeo con addr y length
+  // Comprobar por cada página si es mapeo compartido y escribir en disco 
   for(uint64 i = start_pg; i <= end_pg; i+=PGSIZE){
     // Lazy alloc puede dar lugar a la existencia de páginas no 
     // válidas si aún no han sido accedidas, debemos comprobar eso
     uint64 pa = 0;
     if((pa = walkaddr(p->pagetable, i)) != 0) {
       if(getref((void*)pa) == 1){
-        // #3 Escribir en disco si es mapeo compartido
         if(v->flags & MAP_SHARED){
           struct file *f = v->mappedFile;
           begin_op();
           ilock(f->ip);
           // No se puede usar filewrite, altera el offset y 
-          // deja de ser transparente para el usuario.
+          // el mapeo deja de ser transparente para el usuario.
           writei(f->ip, 1, i, v->offset+(i-(uint64)(v->addrBegin)), PGSIZE);
           iunlock(f->ip);
           end_op();
@@ -353,7 +351,9 @@ munmap(void *addr, int length){
         if(DEBUG) printf("DEBUG: munmap: Valid PTE free'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
       }
       else{
-        // Desmapear la página del proceso, si no, quedan hojas y da panic en freewalk.
+        // Desmapear la página del proceso, sin liberar la PA, 
+        //puesto que hay otros procesos con mapeos que la referencian, 
+        // si no quedan hojas y da panic en freewalk.
         decref((void*)pa);
         uvmunmap(p->pagetable, i, 1, 0);
         if(DEBUG) printf("DEBUG: munmap: Valid PTE with multiple references free'd of pid %d at idx %d, dir: %p\n",p->pid, idx, (void*)i);
@@ -363,7 +363,7 @@ munmap(void *addr, int length){
     }
     // Si borramos la primera página de la vma, hay que poner la siguiente como dir de inicio
     // En caso de borrar todo, no pasa nada por que apunte a una dir incorrecta, ya que se borrará
-    // todo al liberar la estructura en el el punto #4
+    // todo al liberar la estructura en el el punto #3
     if(i == (uint64)v->addrBegin) {
       v->addrBegin += PGSIZE;
       v->offset += PGSIZE;
@@ -371,7 +371,8 @@ munmap(void *addr, int length){
     v->length = v->length - PGSIZE;
   }
 
-  // #4. Liberar fichero si se borra mapeo entero
+  // #3. Liberar fichero si se borra mapeo entero
+  // Limpiamos los valores para evitar accesos malintencionados.
   if(v->length == 0){
     v->used = 0;
     v->addrBegin = 0;
